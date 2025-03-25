@@ -6,5 +6,6 @@
   "dependencies": [],
   "codeowners": ["@boringkraken"],
   "requirements": [],
-  "config_flow": true  // this is apparently very important for it to work in the UI
+  "iot_class": "Local Polling",
+  "config_flow": true
 }
