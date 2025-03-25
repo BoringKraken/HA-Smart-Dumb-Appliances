@@ -1,63 +1,70 @@
-# HA-Smart-Dumb-Appliances
-HA: Smart Dumb Appliances
+#Smart Dumb Appliance
 
-Smart Dumb Appliance is a custom integration for Home Assistant designed to monitor the energy usage of various appliances, such as washing machines, dishwashers, and even coffee makers, if they have a Home assistant compatible smart plug connected to them that monitors energy usage. This integration allows you to track when these appliances start and finish, calculate their electricity costs, and provide service reminders.
+Smart Dumb Appliance is a custom integration for Home Assistant designed to monitor the energy usage of various appliances like washing machines, dishwashers, and even coffee makers. This integration allows you to track when these appliances start and finish, calculate electricity costs using a dynamic cost per kilowatt-hour, and provide service reminders.
 
 ## Features
 
-- **Monitor Appliance Start/End**: Automatically detect when appliances start and stop based on energy usage.
+- **Monitor Appliance Start/End**: Automatically detect when appliances turn on and off based on energy usage.
+- **Dynamic Cost Calculation**: Use a Home Assistant Number helper to adjust and reflect current energy costs.
 - **Configure Dead Zones and Debounce**: Set thresholds to avoid false triggers.
-- **Cost Calculation**: Calculate how much each appliance costs to run using configurable kWh pricing.
-- **Service Reminders**: Get notified after a set number of uses for maintenance tasks.
-- **UI Configuration**: Easily configure within Home Assistant's UI.
+- **Service Reminders**: Notify after a set number of uses for maintenance tasks.
+- **UI Configuration**: Configure easily within Home Assistant's UI.
 
 ## Installation
 
 ### Prerequisites
+
+- Ensure you have Home Assistant with Supervisor/Docker capabilities.
 - HACS (Home Assistant Community Store) installed for easy management.
 
 ### Installation Steps
 
-1. **Via HACS:**
-    - Open the HACS tab in your Home Assistant interface.
+1. **Via HACS**:
+    - Open the HACS tab in Home Assistant.
     - Go to "Integrations" and click the "+" button.
     - Search for 'Smart Dumb Appliance' and install it.
 
-2. **Manual Installation:**
+2. **Manual Installation**:
     - Download or clone this repository.
     - Copy the `smart_dumb_appliance` directory into the `custom_components` directory in your Home Assistant configuration directory.
     - Restart Home Assistant.
 
 ## Configuration
 
-### Using Home Assistant UI
+### Create a Number Helper
+
+1. Navigate to "Configuration" > "Helpers" in Home Assistant.
+2. Click "Add Helper" and choose "Number".
+3. Configure the name, icon, minimum, maximum, and step. Note the entity ID (e.g., `input_number.energy_cost_per_kwh`).
+
+### Configure the Integration Using the UI
 
 1. Navigate to "Configuration" > "Devices & Services".
 2. Click "Add Integration" and search for "Smart Dumb Appliance".
-3. Follow the prompts to set up each appliance you wish to monitor:
-   - Enter a name for the appliance.
-   - Provide the sensor entity ID (e.g., `sensor.washing_machine_energy`).
-   - Configure optional parameters like dead zone, debounce time, and kWh pricing.
+3. Follow prompts:
+   - Enter appliance name.
+   - Provide sensor entity ID (e.g., `sensor.washing_machine_energy`).
+   - Provide entity ID for cost helper.
+   - Configure additional parameters like dead zones, debounce time.
 
 ### Configuration Options
 
-- **Name**: The display name for the appliance.
-- **Sensor Entity ID**: The sensor providing energy data (must be preconfigured in Home Assistant).
-- **Dead Zone**: Energy threshold below which the appliance is considered off.
-- **Debounce Time**: Wait period to confirm state changes.
-- **Cost Per kWh**: Rate used for calculating usage cost.
-- **Service Reminder**: Use count before a maintenance reminder is issued.
+- **Name**: Display name for the appliance.
+- **Sensor Entity ID**: Sensor providing energy data.
+- **Dead Zone**: Energy threshold below which the appliance is off.
+- **Debounce Time**: Time to confirm state changes.
+- **Cost Helper Entity ID**: Used for calculating usage cost.
+- **Service Reminder**: Use count for maintenance reminders.
 
 ## Usage
 
-- Once set up, the integration will monitor the energy usage of your configured appliances.
-- Check the status of each appliance through your Home Assistant dashboard.
-- Receive service reminders in Home Assistant notifications.
+- Monitor appliance status via the Home Assistant dashboard.
+- Receive maintenance reminders through Home Assistant notifications.
 
 ## Troubleshooting
 
-- Ensure the energy sensors are correctly set up and report accurate values.
-- Verify the Home Assistant logs (`Configuration` > `Logs`) for any error messages related to this integration.
+- Verify energy sensors provide accurate values.
+- Check Home Assistant logs (`Configuration` > `Logs`) for error messages related to this integration.
 
 ## Support
 
