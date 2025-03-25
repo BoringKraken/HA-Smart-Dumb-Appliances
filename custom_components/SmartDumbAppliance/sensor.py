@@ -1,6 +1,6 @@
 import logging
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.event import track_state_change
+from homeassistant.helpers.event import async_track_state_change
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -34,8 +34,8 @@ class ApplianceSensor(SensorEntity):
         self._start_time = None
         self._energy_used = 0
 
-        # Track changes in the sensor state
-        track_state_change(hass, self._entity_id, self._state_changed)
+        # Track changes in the sensor state asynchronously
+        async_track_state_change(hass, self._entity_id, self._async_state_changed)
 
     @property
     def _cost_per_kwh(self):
@@ -46,8 +46,8 @@ class ApplianceSensor(SensorEntity):
             _LOGGER.error("Could not retrieve cost per kWh from %s", self._cost_helper_entity_id)
             return 0.0  # Default if error
 
-    def _state_changed(self, entity, old_state, new_state):
-        """Handle changes to the sensor's energy state."""
+    async def _async_state_changed(self, entity, old_state, new_state):
+        """Handle changes to the sensor's energy state asynchronously."""
         try:
             new_value = float(new_state.state)
 
