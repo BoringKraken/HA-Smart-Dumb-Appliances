@@ -13,8 +13,6 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 ## Installation
 
 ### Prerequisites
-
-- Ensure you have Home Assistant with Supervisor/Docker capabilities.
 - HACS (Home Assistant Community Store) installed for easy management.
 
 ### Installation Steps
