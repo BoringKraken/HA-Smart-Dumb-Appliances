@@ -1,7 +1,7 @@
 {
   "domain": "smart_dumb_appliance",
   "name": "Smart Dumb Appliance",
-  "version": "1.0",
+  "version": "1.0.0",
   "documentation": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances",
   "dependencies": [],
   "codeowners": ["@boringkraken"],
