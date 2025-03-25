@@ -1,7 +1,7 @@
 # HA-Smart-Dumb-Appliances
 HA: Smart Dumb Appliances
 
-Smart Dumb Appliance is a custom integration for Home Assistant designed to monitor the energy usage of various appliances, such as washing machines, dishwashers, and even coffee makers. This integration allows you to track when these appliances start and finish, calculate their electricity costs, and provide service reminders.
+Smart Dumb Appliance is a custom integration for Home Assistant designed to monitor the energy usage of various appliances, such as washing machines, dishwashers, and even coffee makers, if they have a Home assistant compatible smart plug connected to them that monitors energy usage. This integration allows you to track when these appliances start and finish, calculate their electricity costs, and provide service reminders.
 
 ## Features
 
