@@ -23,7 +23,7 @@ APPLIANCE_SCHEMA = vol.Schema(
         vol.Required(CONF_END_WATTAGE, default=5): int,  # End Wattage
         vol.Required("dead_zone", default=10): int,  # Wattage Deadzone
         vol.Optional("debounce_time", default=30): int,  # Debounce Count
-        vol.Required(CONF_COST_HELPER): selector({"entity": {"domain": "sensor"}}),  # Entity selector for cost helper
+        vol.Required(CONF_COST_HELPER): selector({"entity": {"domain": "input_number"}}),  # Entity selector for input_number
         vol.Optional("service_reminder", default=10): int,  # Cycle Count
     }
 )
