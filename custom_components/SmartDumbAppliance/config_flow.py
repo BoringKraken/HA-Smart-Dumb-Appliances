@@ -12,17 +12,18 @@ _LOGGER = logging.getLogger(__name__)
 CONF_START_WATTAGE = "start_wattage"
 CONF_END_WATTAGE = "end_wattage"
 CONF_SENSOR = "sensor_entity_id"
+CONF_COST_HELPER = "cost_helper_entity_id"
 
 # Friendly schema reordering and adjustments
 APPLIANCE_SCHEMA = vol.Schema(
     {
         vol.Required("name"): str,  # Name of Dumb Appliance
-        vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor"}}),  # Entity selector without vol.Any
+        vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor"}}),  # Entity selector for sensor
         vol.Required(CONF_START_WATTAGE, default=10): int,  # Start Wattage
         vol.Required(CONF_END_WATTAGE, default=5): int,  # End Wattage
         vol.Required("dead_zone", default=10): int,  # Wattage Deadzone
         vol.Optional("debounce_time", default=30): int,  # Debounce Count
-        vol.Required("cost_helper_entity_id"): str,  # Cost Helper
+        vol.Required(CONF_COST_HELPER): selector({"entity": {"domain": "sensor"}}),  # Entity selector for cost helper
         vol.Optional("service_reminder", default=10): int,  # Cycle Count
     }
 )
