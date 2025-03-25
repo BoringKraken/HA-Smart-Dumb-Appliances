@@ -1,0 +1,9 @@
+{
+  "domain": "smart_dumb_appliance",  // Unique identifier for the integration
+  "name": "Smart Dumb Appliance",  // Name displayed in Home Assistant
+  "version": "1.0",  // Version number of the integration
+  "documentation": "https://example.com/integration_guide",  // URL for documentation
+  "dependencies": [],  // List any integrations that this one depends on
+  "codeowners": ["@your-github-handle"],  // GitHub username of the maintainer
+  "requirements": []  // Python packages required for this integration
+}
