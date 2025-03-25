@@ -17,7 +17,7 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 
 ### Installation Steps
 
-1. **Via HACS**:
+1. **Via HACS - Eventually**:
     - Open the HACS tab in Home Assistant.
     - Go to "Integrations" and click the "+" button.
     - Search for 'Smart Dumb Appliance' and install it.
