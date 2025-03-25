@@ -61,7 +61,7 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 
 ## Support
 
-For any issues or feature requests, please visit the [GitHub repository](https://github.com/your-username/home-assistant-energy-monitor) to raise an issue or contribute.
+For any issues or feature requests, please visit the [GitHub repository](https://github.com/boringkraken/HA-Smart-Dumb-Appliances) to raise an issue or contribute.
 
 ## License
 
