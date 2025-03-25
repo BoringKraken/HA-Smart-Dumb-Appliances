@@ -1,6 +1,7 @@
 import logging
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import ENERGY_KILO_WATT_HOUR
+# Look for an alternative or define it manually
+from homeassistant.const import UnitOfMeasurement
 from homeassistant.helpers.event import track_state_change
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
@@ -28,7 +29,7 @@ class ApplianceSensor(SensorEntity):
         self._entity_id = appliance["sensor_entity_id"]
         self._dead_zone = appliance["dead_zone"]
         self._debounce_time = appliance["debounce_time"]
-        self._cost_helper_entity_id = appliance['cost_helper_entity_id']  # Referenced cost entity
+        self._cost_helper_entity_id = appliance["cost_helper_entity_id"]  # Referenced cost entity
         self._service_reminder = appliance["service_reminder"]
         
         self._state = "idle"
@@ -89,7 +90,7 @@ class ApplianceSensor(SensorEntity):
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement."""
-        return ENERGY_KILO_WATT_HOUR
+        return UnitOfMeasurement.ENERGY_KILO_WATT_HOUR
 
     @property
     def state(self):
