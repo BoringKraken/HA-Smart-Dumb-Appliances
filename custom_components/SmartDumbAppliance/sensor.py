@@ -1,9 +1,9 @@
 import logging
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.event import async_track_state_change
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,10 +18,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class ApplianceSensor(SensorEntity):
-    def __init__(self, hass, appliance):
-        self._hass = hass
-        
-        # Initialize properties from configuration
+    def __init__(self, hass: HomeAssistant, appliance):
+        self._hass = hass        
         self._name = appliance["name"]
         self._entity_id = appliance["sensor_entity_id"]
         self._dead_zone = appliance["dead_zone"]
@@ -34,32 +32,33 @@ class ApplianceSensor(SensorEntity):
         self._start_time = None
         self._energy_used = 0
 
-        # Track changes in the sensor state asynchronously
-        async_track_state_change(hass, self._entity_id, self._async_state_changed)
+    async def async_added_to_hass(self):
+        """Register asynchronous state change handler."""
+        async_track_state_change_event(self._hass, [self._entity_id], self._async_state_changed)
 
     @property
     def _cost_per_kwh(self):
-        """Retrieve cost per kWh from the input number helper entity."""
+        """Retrieve cost per kWh from input number helper entity."""
         try:
             return float(self._hass.states.get(self._cost_helper_entity_id).state)
         except (TypeError, ValueError, AttributeError):
             _LOGGER.error("Could not retrieve cost per kWh from %s", self._cost_helper_entity_id)
-            return 0.0  # Default if error
+            return 0.0  # Default if retrieval fails
 
-    async def _async_state_changed(self, entity, old_state, new_state):
+    @callback
+    async def _async_state_changed(self, event):
         """Handle changes to the sensor's energy state asynchronously."""
         try:
+            new_state = event.data.get('new_state')
             new_value = float(new_state.state)
 
             if self._active:
-                # Check if appliance should be considered 'off'
                 if new_value <= self._dead_zone:
                     self._hass.loop.call_later(self._debounce_time, self._end_usage)
                 else:
                     energy_increment = (new_value - self._dead_zone)
                     self._energy_used += energy_increment
             else:
-                # Detect when appliance is turned 'on'
                 if new_value > self._dead_zone:
                     self._start_usage()
         except ValueError as e:
