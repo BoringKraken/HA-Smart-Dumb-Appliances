@@ -1,8 +1,9 @@
 {
-  "domain": "smart_dumb_appliance",  // Unique identifier for the integration
-  "name": "Smart Dumb Appliance",  // Name displayed in Home Assistant
-  "version": "1.0",  // Version number of the integration
-  "dependencies": [],  // List any integrations that this one depends on
-  "codeowners": ["@boringkraken"],  // GitHub username of the maintainer
-  "requirements": []  // Python packages required for this integration
+  "domain": "smart_dumb_appliance",
+  "name": "Smart Dumb Appliance",
+  "version": "1.0",
+  "documentation": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances",
+  "dependencies": [],
+  "codeowners": ["@boringkraken"],
+  "requirements": []
 }
