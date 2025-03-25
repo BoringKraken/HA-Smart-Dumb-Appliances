@@ -2,8 +2,22 @@ import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import ENERGY_KILO_WATT_HOUR
 from homeassistant.helpers.event import track_state_change
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+    """Set up Smart Dumb Appliance sensor through config entry."""
+    # Get data from the configuration entry
+    entry_data = config_entry.data
+    name = entry_data["name"]
+
+    # Create and add the entities
+    appliance_sensor = ApplianceSensor(hass, entry_data)
+    async_add_entities([appliance_sensor], update_before_add=True)
+
 
 class ApplianceSensor(SensorEntity):
     def __init__(self, hass, appliance):
@@ -36,7 +50,6 @@ class ApplianceSensor(SensorEntity):
 
     def _state_changed(self, entity, old_state, new_state):
         """Handle changes to the sensor's energy state."""
-
         try:
             new_value = float(new_state.state)
 
