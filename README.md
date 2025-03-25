@@ -63,10 +63,4 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 
 For any issues or feature requests, please visit the [GitHub repository](https://github.com/boringkraken/HA-Smart-Dumb-Appliances) to raise an issue or contribute.
 
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
 By using this integration, you agree to this setup and understand the obligations under the chosen license.
