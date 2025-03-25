@@ -55,14 +55,18 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SmartDumbApplianceOptionsFlowHandler(config_entry)
 
 class SmartDumbApplianceOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for Smart Dumb Appliance."""
+
     def __init__(self, config_entry):
+        """Initialize the options flow handler."""
         _LOGGER.debug("Initializing OptionsFlowHandler")
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
+        """Manage the options for an existing config entry."""
         _LOGGER.debug("Options step init with user input: %s", user_input)
 
         if user_input is not None:
-            # Directly access config_entry through parameters where necessary
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(step_id="init", data_schema=APPLIANCE_SCHEMA)
