@@ -8,28 +8,33 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+# Constants for friendly configuration
 CONF_START_WATTAGE = "start_wattage"
 CONF_END_WATTAGE = "end_wattage"
 CONF_SENSOR = "sensor_entity_id"
 
+# Friendly schema reordering and adjustments
 APPLIANCE_SCHEMA = vol.Schema(
     {
-        vol.Required("name"): str,
-        vol.Required(CONF_SENSOR): vol.Any(str, selector({"entity": {"domain": "sensor"}})),
-        vol.Required(CONF_START_WATTAGE, default=10): int,
-        vol.Required(CONF_END_WATTAGE, default=5): int,
-        vol.Required("dead_zone", default=10): int,
-        vol.Optional("debounce_time", default=30): int,
-        vol.Required("cost_helper_entity_id"): str,
-        vol.Optional("service_reminder", default=10): int,
+        vol.Required("name"): str,  # Name of Dumb Appliance
+        vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor"}}),  # Entity selector without vol.Any
+        vol.Required(CONF_START_WATTAGE, default=10): int,  # Start Wattage
+        vol.Required(CONF_END_WATTAGE, default=5): int,  # End Wattage
+        vol.Required("dead_zone", default=10): int,  # Wattage Deadzone
+        vol.Optional("debounce_time", default=30): int,  # Debounce Count
+        vol.Required("cost_helper_entity_id"): str,  # Cost Helper
+        vol.Optional("service_reminder", default=10): int,  # Cycle Count
     }
 )
 
 @config_entries.HANDLERS.register(DOMAIN)
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Smart Dumb Appliance."""
+    
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
+        """Execute user configuration."""
         _LOGGER.debug("Executing async_step_user with input: %s", user_input)
 
         if self._async_current_entries():
