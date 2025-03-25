@@ -38,9 +38,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Execute user configuration."""
         _LOGGER.debug("Executing async_step_user with input: %s", user_input)
 
-        if self._async_current_entries():
-            _LOGGER.debug("Integration already configured. Aborting.")
-            return self.async_abort(reason="single_instance_allowed")
+        # Removed check for existing entries to allow multiple configurations.
         
         if user_input is not None:
             _LOGGER.debug("User input provided, creating an entry.")
