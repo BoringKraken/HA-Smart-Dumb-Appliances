@@ -6,4 +6,5 @@
   "dependencies": [],
   "codeowners": ["@boringkraken"],
   "requirements": []
+  "config_flow": true  // this is apparently very important for it to work in the UI
 }
