@@ -1,19 +1,26 @@
+import logging
+
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
+
 from .const import DOMAIN
 
-async def async_setup(hass: HomeAssistant, config: dict):
-    """Set up smart dumb appliance from configuration.yaml."""
+_LOGGER = logging.getLogger(__name__)
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Smart Dumb Appliance Integration."""
+    return True
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Smart Dumb Appliance from a config entry."""
+
+    # Store a reference to the configuration entry
     hass.data.setdefault(DOMAIN, {})
-    return True
+    hass.data[DOMAIN][entry.entry_id] = entry
 
-async def async_setup_entry(hass: HomeAssistant, entry):
-    """Set up smart dumb appliance from a config entry."""
-    # Store entry data in Home Assistant's domain-specific data storage
-    hass.data[DOMAIN][entry.entry_id] = entry.data
-    return True
+    # Forward setup to platform
+    hass.config_entries.async_setup_platforms(entry, ["sensor"])
 
-async def async_unload_entry(hass: HomeAssistant, entry):
-    """Unload a config entry."""
-    # Remove entry data from Home Assistant's domain-specific storage
-    hass.data[DOMAIN].pop(entry.entry_id)
+    _LOGGER.debug("Entry setup: %s", entry.data)
     return True
