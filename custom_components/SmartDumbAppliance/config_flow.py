@@ -1,64 +1,44 @@
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_ENTITY_ID
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.selector import selector
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# Add additional configuration keys for wattage
+# Constants for friendly configuration
 CONF_START_WATTAGE = "start_wattage"
 CONF_END_WATTAGE = "end_wattage"
 CONF_SENSOR = "sensor_entity_id"
 
-# Base schema for appliance configuration
+# Friendly schema reordering and adjustments
 APPLIANCE_SCHEMA = vol.Schema(
     {
-        vol.Required("name"): str,
-        vol.Required(CONF_SENSOR): str,  # Replaced with entity selector
-        vol.Required(CONF_START_WATTAGE, default=10): int,  # Default for start wattage
-        vol.Required(CONF_END_WATTAGE, default=5): int,  # Default for end wattage
-        vol.Required("dead_zone", default=10): int,
-        vol.Optional("debounce_time", default=30): int,
-        vol.Required("cost_helper_entity_id"): str,
-        vol.Optional("service_reminder", default=10): int,
+        vol.Required("name"): str,  # Name of Dumb Appliance
+        vol.Required(CONF_SENSOR): vol.Any(str, selector({"entity": {"domain": "sensor"}})),  # Entity selector with filtering
+        vol.Required(CONF_START_WATTAGE, default=10): int,  # Start Wattage
+        vol.Required(CONF_END_WATTAGE, default=5): int,  # End Wattage
+        vol.Required("dead_zone", default=10): int,  # Wattage Deadzone
+        vol.Optional("debounce_time", default=30): int,  # Debounce Count
+        vol.Required("cost_helper_entity_id"): str,  # Cost Helper
+        vol.Optional("service_reminder", default=10): int,  # Cycle Count
     }
 )
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Smart Dumb Appliance."""
-
-    def __init__(self):
-        """Initialize the config flow."""
-        self._available_sensors = []
-
+    
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        """Manage the initial configuration for a new appliance."""
-        # Populate the sensor list only once for the selection
-        entity_registry = er.async_get(self.hass)
-        if not self._available_sensors:
-            self._available_sensors = [
-                entity.entity_id for entity in entity_registry.entities.values()
-                if entity.entity_id.startswith("sensor.")
-            ]
+        """Execute user configuration."""
 
         if user_input is not None:
-            # Create the entry if user input is complete
             return self.async_create_entry(title=user_input["name"], data=user_input)
 
-        # Update the appliance schema with dynamic sensor options
-        schema = APPLIANCE_SCHEMA.extend({
-            vol.Required(CONF_SENSOR): vol.In(self._available_sensors),
-            vol.Required(CONF_START_WATTAGE, default=10): int,
-            vol.Required(CONF_END_WATTAGE, default=5): int,
-        })
-
-        # Present the configuration form to the user
-        return self.async_show_form(step_id="user", data_schema=schema)
+        return self.async_show_form(step_id="user", data_schema=APPLIANCE_SCHEMA)
 
     @staticmethod
     @callback
@@ -77,10 +57,4 @@ class SmartDumbApplianceOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        schema = APPLIANCE_SCHEMA.extend({
-            vol.Required(CONF_SENSOR, default=self.config_entry.data.get(CONF_SENSOR)): vol.In(self._available_sensors),
-            vol.Required(CONF_START_WATTAGE, default=self.config_entry.data.get(CONF_START_WATTAGE)): int,
-            vol.Required(CONF_END_WATTAGE, default=self.config_entry.data.get(CONF_END_WATTAGE)): int,
-        })
-
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=APPLIANCE_SCHEMA)
