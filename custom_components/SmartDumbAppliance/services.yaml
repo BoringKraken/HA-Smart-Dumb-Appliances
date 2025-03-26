@@ -1,0 +1,10 @@
+# If you want to define custom services for this integration, you can do so here.
+# Example structure:
+
+# smart_dumb_appliance.reset_usage:
+#   name: "Reset Appliance Usage"
+#   description: "Reset usage counters for a specific device"
+#   fields:
+#     entry_id:
+#       description: "The Config Entry ID for the device you want to reset"
+#       example: "abcdef123456"
