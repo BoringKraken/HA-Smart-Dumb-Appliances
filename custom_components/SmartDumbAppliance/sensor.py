@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -48,4 +49,5 @@ class ApplianceSensor(SensorEntity):
         # Logic to update self._state and self._extra_attributes
         # Example static state, replace with dynamic logic
         self._state = "idle"  # This is an example, implement dynamic logic
-        self._extra_attributes.update({"last_updated": self._hass.time()})
+        # Use datetime module to get current UTC time
+        self._extra_attributes.update({"last_updated": datetime.utcnow().isoformat()})
