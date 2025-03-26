@@ -1,52 +1,105 @@
-import logging
+"""
+Defines the Config Flow for Smart Dumb Appliance, allowing users to add/edit devices.
+"""
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import DOMAIN
+from homeassistant.helpers import selector
 
-_LOGGER = logging.getLogger(__name__)
-
-# Schema for appliance configuration within the integration's setup
-APPLIANCE_SCHEMA = vol.Schema(
-    {
-        vol.Required("name"): str,  # Appliance name is required and should be a string
-        vol.Required("sensor_entity_id"): str,  # The sensor providing power data
-        vol.Required("dead_zone", default=10): int,  # Threshold energy below which appliance is off
-        vol.Optional("debounce_time", default=30): int,  # Time in seconds to debounce state changes
-        vol.Required("cost_helper_entity_id"): str,  # New: entity ID for cost per kWh
-        vol.Optional("service_reminder", default=10): int,  # Use count for service reminders
-    }
+from .const import (
+    DOMAIN,
+    CONF_POWER_SENSOR,
+    CONF_COST_SENSOR,
+    CONF_DEAD_ZONE,
+    CONF_DEBOUNCE,
+    CONF_DEVICE_NAME
 )
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Smart Dumb Appliance."""
-
+    """The main config flow for adding a new Smart Dumb Appliance device."""
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        """Manage the initial configuration for a new appliance."""
-        if user_input is not None:
-            return self.async_create_entry(title=user_input["name"], data=user_input)
+    def __init__(self):
+        self._errors = {}
 
-        # Show a form for user input on configuration details
-        return self.async_show_form(step_id="user", data_schema=APPLIANCE_SCHEMA)
+    async def async_step_user(self, user_input=None):
+        """Handle the initial step where user configures the device."""
+        if user_input is not None:
+            # Normally you'd add validation checks here if desired.
+            return self.async_create_entry(
+                title=user_input[CONF_DEVICE_NAME],
+                data=user_input
+            )
+
+        schema = vol.Schema({
+            vol.Required(CONF_DEVICE_NAME, default="My Appliance"): str,
+            vol.Required(CONF_POWER_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor"])
+            ),
+            vol.Optional(CONF_COST_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["number"])
+            ),
+            vol.Optional(CONF_DEAD_ZONE, default=5): vol.Coerce(float),
+            vol.Optional(CONF_DEBOUNCE, default=30): vol.Coerce(float),
+        })
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=self._errors
+        )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        """Return an options flow handler for the config entry."""
+        """Return the options flow handler for updating an existing entry."""
         return SmartDumbApplianceOptionsFlowHandler(config_entry)
 
+
 class SmartDumbApplianceOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options for the Smart Dumb Appliance config entry."""
+    """Handles the 'Options' flow to edit an existing device's settings."""
 
     def __init__(self, config_entry):
         self.config_entry = config_entry
+        self._errors = {}
 
     async def async_step_init(self, user_input=None):
-        """Manage the options for an existing config entry."""
+        """Show or process the options form."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        # Display the form for users to modify options
-        return self.async_show_form(step_id="init", data_schema=APPLIANCE_SCHEMA)
+        current_data = dict(self.config_entry.data)
+
+        schema = vol.Schema({
+            vol.Required(
+                CONF_DEVICE_NAME,
+                default=current_data.get(CONF_DEVICE_NAME, "My Appliance")
+            ): str,
+            vol.Required(
+                CONF_POWER_SENSOR,
+                default=current_data.get(CONF_POWER_SENSOR, "")
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor"])
+            ),
+            vol.Optional(
+                CONF_COST_SENSOR,
+                default=current_data.get(CONF_COST_SENSOR, "")
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["number"])
+            ),
+            vol.Optional(
+                CONF_DEAD_ZONE,
+                default=current_data.get(CONF_DEAD_ZONE, 5)
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_DEBOUNCE,
+                default=current_data.get(CONF_DEBOUNCE, 30)
+            ): vol.Coerce(float),
+        })
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            errors=self._errors
+        )
