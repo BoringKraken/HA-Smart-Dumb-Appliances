@@ -1,94 +1,87 @@
+"""
+Implements sensor entities for Smart Dumb Appliance.
+Example: A cost sensor that calculates cost by multiplying usage * cost/kWh.
+"""
+
 import logging
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import ENERGY_KILO_WATT_HOUR
-from homeassistant.helpers.event import track_state_change
+from homeassistant.core import HomeAssistant
+from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
+
+from .const import DOMAIN, CONF_POWER_SENSOR, CONF_COST_SENSOR, CONF_DEVICE_NAME
 
 _LOGGER = logging.getLogger(__name__)
 
-class ApplianceSensor(SensorEntity):
-    def __init__(self, hass, appliance):
-        self._hass = hass
-        
-        # Initialize properties from configuration
-        self._name = appliance["name"]
-        self._entity_id = appliance["sensor_entity_id"]
-        self._dead_zone = appliance["dead_zone"]
-        self._debounce_time = appliance["debounce_time"]
-        self._cost_helper_entity_id = appliance['cost_helper_entity_id']  # Referenced cost entity
-        self._service_reminder = appliance["service_reminder"]
-        
-        self._state = "idle"
-        self._active = False
-        self._start_time = None
-        self._energy_used = 0
+async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
+    """Set up Smart Dumb Appliance sensors from a ConfigEntry."""
+    config = hass.data[DOMAIN][entry.entry_id]
+    device_name = config.get(CONF_DEVICE_NAME, "Appliance")
+    power_sensor_id = config.get(CONF_POWER_SENSOR)
+    cost_sensor_id = config.get(CONF_COST_SENSOR)
 
-        # Track changes in the sensor state
-        track_state_change(hass, self._entity_id, self._state_changed)
+    sensors = []
+    if cost_sensor_id:
+        sensors.append(
+            SmartDumbApplianceCostSensor(
+                entry_id=entry.entry_id,
+                name=f"{device_name} Cost",
+                power_sensor_entity_id=power_sensor_id,
+                cost_sensor_entity_id=cost_sensor_id,
+            )
+        )
 
-    @property
-    def _cost_per_kwh(self):
-        """Retrieve cost per kWh from the input number helper entity."""
-        try:
-            return float(self._hass.states.get(self._cost_helper_entity_id).state)
-        except (TypeError, ValueError, AttributeError):
-            _LOGGER.error("Could not retrieve cost per kWh from %s", self._cost_helper_entity_id)
-            return 0.0  # Default if error
+    async_add_entities(sensors, update_before_add=True)
 
-    def _state_changed(self, entity, old_state, new_state):
-        """Handle changes to the sensor's energy state."""
+class SmartDumbApplianceCostSensor(SensorEntity):
+    """A sensor that computes cost from a power sensor and a cost-per-kWh sensor."""
 
-        try:
-            new_value = float(new_state.state)
-
-            if self._active:
-                # Check if appliance should be considered 'off'
-                if new_value <= self._dead_zone:
-                    self._hass.loop.call_later(self._debounce_time, self._end_usage)
-                else:
-                    energy_increment = (new_value - self._dead_zone)
-                    self._energy_used += energy_increment
-            else:
-                # Detect when appliance is turned 'on'
-                if new_value > self._dead_zone:
-                    self._start_usage()
-        except ValueError as e:
-            _LOGGER.error("Error processing state change: %s", e)
-
-    def _start_usage(self):
-        """Mark the appliance as active and start timing."""
-        self._start_time = self._hass.util.dt.now()
-        self._active = True
-        _LOGGER.info("%s started", self._name)
-
-    def _end_usage(self):
-        """Log usage information and reset states."""
-        elapsed_time = self._hass.util.dt.now() - self._start_time
-        _LOGGER.info("%s finished: duration %s, energy used %.2f kWh, cost %.2f", 
-                    self._name, elapsed_time, self._energy_used, self._energy_used * self._cost_per_kwh)
-        self._active = False
-        self._energy_used = 0
+    def __init__(self, entry_id, name, power_sensor_entity_id, cost_sensor_entity_id):
+        self._entry_id = entry_id
+        self._name = name
+        self._power_sensor_entity_id = power_sensor_entity_id
+        self._cost_sensor_entity_id = cost_sensor_entity_id
+        self._state = None
+        self._attr_unique_id = f"{entry_id}_cost_sensor"
 
     @property
     def name(self):
-        """Return the name of the sensor."""
+        """Name shown in the UI."""
         return self._name
 
     @property
-    def unit_of_measurement(self):
-        """Return the unit of measurement."""
-        return ENERGY_KILO_WATT_HOUR
+    def native_value(self):
+        """The calculated cost."""
+        return self._state
 
     @property
-    def state(self):
-        """Return the state of the sensor."""
-        return "Running" if self._active else "Idle"
+    def native_unit_of_measurement(self):
+        """Return a suitable currency symbol or code."""
+        return "USD"
 
     @property
-    def icon(self):
-        """Return the icon for the sensor."""
-        if "washing machine" in self._name.lower():
-            return "mdi:washing-machine"
-        elif "dishwasher" in self._name.lower():
-            return "mdi:dishwasher"
+    def should_poll(self):
+        """We'll poll the state machine for updates."""
+        return True
+
+    async def async_update(self):
+        """Fetch usage and cost, then calculate total cost."""
+        power_state_obj = self.hass.states.get(self._power_sensor_entity_id)
+        cost_state_obj = self.hass.states.get(self._cost_sensor_entity_id)
+
+        if not power_state_obj or power_state_obj.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            usage_kwh = 0
         else:
-            return "mdi:power-plug"
+            try:
+                usage_kwh = float(power_state_obj.state)
+            except ValueError:
+                usage_kwh = 0
+
+        if not cost_state_obj or cost_state_obj.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            cost_per_kwh = 0
+        else:
+            try:
+                cost_per_kwh = float(cost_state_obj.state)
+            except ValueError:
+                cost_per_kwh = 0
+
+        self._state = usage_kwh * cost_per_kwh
