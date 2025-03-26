@@ -1,0 +1,18 @@
+{
+  "title": "Smart Dumb Appliance",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure your Smart Dumb Appliance",
+        "description": "Set up name, power sensor, optional cost sensor, and thresholds.",
+        "data": {
+          "device_name": "Device Name",
+          "power_sensor": "Power Sensor",
+          "cost_sensor": "Cost Sensor (Optional)",
+          "dead_zone": "Dead Zone (Watts)",
+          "debounce": "Debounce (Seconds)"
+        }
+      }
+    }
+  }
+}
