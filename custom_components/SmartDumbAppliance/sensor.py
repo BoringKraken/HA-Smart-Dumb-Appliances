@@ -4,19 +4,25 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-# Define logger for the module
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities) -> None:
-    """Set up Smart Dumb Appliance sensor through config entry."""
-    entry_data = config_entry.data
-    _LOGGER.debug("Setting up Smart Dumb Appliance sensor with entry: %s", entry_data)
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+    """Set up Smart Dumb Appliance sensors through config entry."""
+    # Extract the list of device-specific configurations from the entry data
+    entry_data_list = config_entry.data.get("devices", [])
+    _LOGGER.debug("Config entry data received: %s", entry_data_list)
+    
+    sensors = []
 
-    if entry_data:
-        # Initialize the sensor with the provided configuration data
+    for entry_data in entry_data_list:
+        _LOGGER.debug("Processing device data: %s", entry_data)
+        # Create a new sensor entity for each device entry in the list
         appliance_sensor = ApplianceSensor(hass, entry_data)
-        # Add the prepared sensor to Home Assistant entities
-        async_add_entities([appliance_sensor], update_before_add=True)
+        _LOGGER.debug("Created appliance sensor: %s", appliance_sensor)
+        sensors.append(appliance_sensor)
+    
+    # Add all sensors to Home Assistant entities
+    async_add_entities(sensors, update_before_add=True)
 
 class ApplianceSensor(SensorEntity):
     """Representation of a sensor for monitoring appliance state."""
@@ -25,8 +31,8 @@ class ApplianceSensor(SensorEntity):
         """Initialize the appliance sensor."""
         self._hass = hass
         self._entry_data = entry_data
-        self._state = None
         self._name = entry_data.get("name", "Unknown Appliance")
+        self._state = "idle"
         self._extra_attributes = {}
 
     @property
@@ -46,8 +52,6 @@ class ApplianceSensor(SensorEntity):
 
     async def async_update(self):
         """Fetch new state data for the sensor."""
-        # Logic to update self._state and self._extra_attributes
-        # Example static state, replace with dynamic logic
-        self._state = "idle"  # This is an example, implement dynamic logic
-        # Use datetime module to get current UTC time
-        self._extra_attributes.update({"last_updated": datetime.utcnow().isoformat()})
+        self._extra_attributes.update(
+            {"last_updated": datetime.utcnow().isoformat()}
+        )
