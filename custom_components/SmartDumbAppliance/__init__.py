@@ -18,6 +18,9 @@ from .const import DOMAIN
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)
 
+# Debug log to verify module loading
+_LOGGER.info("Smart Dumb Appliance integration is being loaded")
+
 # Define the platforms that this integration supports
 PLATFORMS = ["sensor", "binary_sensor"]
 

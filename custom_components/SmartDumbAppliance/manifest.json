@@ -7,5 +7,7 @@
   "codeowners": ["@boringkraken"],
   "requirements": [],
   "iot_class": "Local Polling",
-  "config_flow": true
+  "config_flow": true,
+  "homeassistant": "2023.10.1",
+  "issue_tracker": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances/issues"
 }
