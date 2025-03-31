@@ -13,6 +13,26 @@ A Home Assistant custom integration that turns your "dumb" appliances into smart
 - Supports multiple appliances with different configurations
 - Easy to configure through the Home Assistant UI
 
+## Prerequisites
+
+Before installing this integration, you need to have power monitoring set up in your Home Assistant instance. This can be achieved through:
+
+1. Smart plugs with power monitoring (e.g., TP-Link, Sonoff, etc.)
+2. Dedicated energy monitoring devices
+3. Smart meter integrations
+4. Any other device that provides power consumption data
+
+The integration will work with any sensor that:
+- Reports power consumption in watts (W) or kilowatts (kW)
+- Has a numerical value
+- Has a proper unit of measurement set
+
+To verify your power sensors are available:
+1. Go to Settings → Devices & Services → Entities
+2. Look for entities that measure power consumption
+3. The sensor should have a unit of measurement of "W" or "kW"
+4. The sensor should be reporting numerical values
+
 ## Installation
 
 ### Method 1: HACS (Recommended)
@@ -121,13 +141,33 @@ sensor:
 
 ## Troubleshooting
 
-If you're having issues with the integration:
+### Common Issues
 
-1. Check the Home Assistant logs for error messages
-2. Verify your power sensor is working correctly
-3. Ensure the watt thresholds are appropriate for your appliance
-4. Try adjusting the debounce time if you get false readings
-5. Make sure you have the latest version installed
+#### "no_power_sensors" Error
+
+If you're getting the "no_power_sensors" error even though you have power sensors:
+
+1. **Check Device Class**
+   - Go to Settings → Devices & Services → Entities
+   - Find your power sensor
+   - Click on it to view its details
+   - Verify that `device_class` is set to `power`
+   - If not, you can set it in the entity's settings
+
+2. **Verify Unit of Measurement**
+   - Make sure your power sensor's unit is set to `W` (watts)
+   - This can be checked in the same entity details page
+
+3. **Check Sensor Availability**
+   - Ensure your power sensor is actually reporting values
+   - Look at the sensor's history graph to confirm it's active
+   - Try restarting the integration that provides the power sensor
+
+4. **Integration Requirements**
+   - The power sensor must be available before starting the Smart Dumb Appliance integration
+   - Try restarting Home Assistant to ensure all sensors are properly loaded
+
+If you're still having issues, please check the Home Assistant logs for more detailed error messages.
 
 ## Contributing
 
