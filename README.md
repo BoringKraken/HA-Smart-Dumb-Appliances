@@ -1,178 +1,73 @@
 ## Work In Progress
 
-# Smart Dumb Appliance
+#Smart Dumb Appliance
 
-A Home Assistant custom integration that turns your "dumb" appliances into smart ones by monitoring their power usage. This integration helps you track energy consumption, operating costs, and maintenance schedules for appliances that don't have built-in smart features.
+Smart Dumb Appliance is a custom integration for Home Assistant designed to monitor the energy usage of various appliances like washing machines, dishwashers, and even coffee makers. This integration allows you to track when these appliances start and finish, calculate electricity costs using a dynamic cost per kilowatt-hour, and provide service reminders.
 
 ## Features
 
-- Monitors appliance power usage in real-time
-- Automatically detects when appliances are running
-- Tracks energy consumption and operating costs
-- Provides service reminders based on usage
-- Supports multiple appliances with different configurations
-- Easy to configure through the Home Assistant UI
-
-## Prerequisites
-
-Before installing this integration, you need to have power monitoring set up in your Home Assistant instance. This can be achieved through:
-
-1. Smart plugs with power monitoring (e.g., TP-Link, Sonoff, etc.)
-2. Dedicated energy monitoring devices
-3. Smart meter integrations
-4. Any other device that provides power consumption data
-
-The integration will work with any sensor that:
-- Reports power consumption in watts (W) or kilowatts (kW)
-- Has a numerical value
-- Has a proper unit of measurement set
-
-To verify your power sensors are available:
-1. Go to Settings → Devices & Services → Entities
-2. Look for entities that measure power consumption
-3. The sensor should have a unit of measurement of "W" or "kW"
-4. The sensor should be reporting numerical values
+- **Monitor Appliance Start/End**: Automatically detect when appliances turn on and off based on energy usage.
+- **Dynamic Cost Calculation**: Use a Home Assistant Number helper to adjust and reflect current energy costs.
+- **Configure Dead Zones and Debounce**: Set thresholds to avoid false triggers.
+- **Service Reminders**: Notify after a set number of uses for maintenance tasks.
+- **UI Configuration**: Configure easily within Home Assistant's UI.
 
 ## Installation
 
-### Method 1: HACS (Recommended)
+### Prerequisites
+- HACS (Home Assistant Community Store) installed for easy management.
 
-1. Install [HACS](https://hacs.xyz/) if you haven't already
-2. Open Home Assistant and go to HACS
-3. Click "Add Custom Repository"
-4. Enter the following details:
-   - Repository: `BoringKraken/HA-Smart-Dumb-Appliances`
-   - Category: Integration
-   - Name: Smart Dumb Appliance
-5. Click "Add"
-6. Find "Smart Dumb Appliance" in the HACS store
-7. Click "Download"
-8. Restart Home Assistant
+### Installation Steps
 
-### Method 2: Manual Installation
+1. **Via HACS - Eventually**:
+    - Open the HACS tab in Home Assistant.
+    - Go to "Integrations" and click the "+" button.
+    - Search for 'Smart Dumb Appliance' and install it.
 
-1. Download the latest release from the [releases page](https://github.com/BoringKraken/HA-Smart-Dumb-Appliances/releases)
-2. Extract the downloaded zip file
-3. Copy the `custom_components/SmartDumbAppliance` folder to your Home Assistant's `custom_components` directory
-4. Restart Home Assistant
-
-### Method 3: Git Clone
-
-1. SSH into your Home Assistant instance
-2. Navigate to the custom_components directory:
-   ```bash
-   cd /config/custom_components
-   ```
-3. Clone the repository:
-   ```bash
-   git clone https://github.com/BoringKraken/HA-Smart-Dumb-Appliances.git SmartDumbAppliance
-   ```
-4. Restart Home Assistant
+2. **Manual Installation**:
+    - Download or clone this repository.
+    - Copy the `smart_dumb_appliance` directory into the `custom_components` directory in your Home Assistant configuration directory.
+    - Restart Home Assistant.
 
 ## Configuration
 
-After installation, you can add the integration through the Home Assistant UI:
+### Create a Number Helper
 
-1. Go to Settings → Devices & Services
-2. Click "Add Integration"
-3. Search for "Smart Dumb Appliance"
-4. Click "Configure"
-5. Enter the required information:
-   - Device Name: A friendly name for your appliance
-   - Power Sensor: Select the power monitoring sensor
-   - Cost Sensor (Optional): Select a sensor that provides electricity cost per kWh
-6. Click "Submit"
+1. Navigate to "Configuration" > "Helpers" in Home Assistant.
+2. Click "Add Helper" and choose "Number".
+3. Configure the name, icon, minimum, maximum, and step. Note the entity ID (e.g., `input_number.energy_cost_per_kwh`).
 
-### Advanced Configuration
+### Configure the Integration Using the UI
 
-Click "Show Advanced Options" to configure additional settings:
+1. Navigate to "Configuration" > "Devices & Services".
+2. Click "Add Integration" and search for "Smart Dumb Appliance".
+3. Follow prompts:
+   - Enter appliance name.
+   - Provide sensor entity ID (e.g., `sensor.washing_machine_energy`).
+   - Provide entity ID for cost helper.
+   - Configure additional parameters like dead zones, debounce time.
 
-- Start Watts: Power threshold that indicates the appliance has started
-- Stop Watts: Power threshold that indicates the appliance has stopped
-- Dead Zone: Minimum power threshold to consider appliance as "on"
-- Debounce: Time to wait before confirming state changes
-- Service Reminder: Enable usage tracking and maintenance reminders
-- Service Reminder Count: Number of uses before showing a reminder
-- Service Reminder Message: Custom message for the reminder
+### Configuration Options
+
+- **Name**: Display name for the appliance.
+- **Sensor Entity ID**: Sensor providing energy data.
+- **Dead Zone**: Energy threshold below which the appliance is off.
+- **Debounce Time**: Time to confirm state changes.
+- **Cost Helper Entity ID**: Used for calculating usage cost.
+- **Service Reminder**: Use count for maintenance reminders.
 
 ## Usage
 
-Once configured, the integration will create several entities for each appliance:
-
-- Energy Usage: Tracks total energy consumption
-- Power State: Shows if the appliance is currently running
-- Service Status: Indicates if maintenance is needed
-
-You can use these entities in automations, dashboards, and scripts to:
-- Monitor appliance usage
-- Track energy costs
-- Get maintenance reminders
-- Create notifications for state changes
-
-## Examples
-
-### Basic Automation
-
-```yaml
-automation:
-  - alias: "Notify when dishwasher is done"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.dishwasher_power_state
-        to: "off"
-    action:
-      - service: notify.notify
-        data:
-          message: "Dishwasher cycle complete"
-```
-
-### Energy Usage Tracking
-
-```yaml
-sensor:
-  - platform: template
-    sensors:
-      dishwasher_daily_energy:
-        value_template: >
-          {% set energy = states('sensor.dishwasher_energy_usage') | float %}
-          {{ energy | round(2) }}
-        unit_of_measurement: kWh
-```
+- Monitor appliance status via the Home Assistant dashboard.
+- Receive maintenance reminders through Home Assistant notifications.
 
 ## Troubleshooting
 
-### Common Issues
+- Verify energy sensors provide accurate values.
+- Check Home Assistant logs (`Configuration` > `Logs`) for error messages related to this integration.
 
-#### "no_power_sensors" Error
+## Support
 
-If you're getting the "no_power_sensors" error even though you have power sensors:
+For any issues or feature requests, please visit the [GitHub repository](https://github.com/boringkraken/HA-Smart-Dumb-Appliances) to raise an issue or contribute.
 
-1. **Check Device Class**
-   - Go to Settings → Devices & Services → Entities
-   - Find your power sensor
-   - Click on it to view its details
-   - Verify that `device_class` is set to `power`
-   - If not, you can set it in the entity's settings
-
-2. **Verify Unit of Measurement**
-   - Make sure your power sensor's unit is set to `W` (watts)
-   - This can be checked in the same entity details page
-
-3. **Check Sensor Availability**
-   - Ensure your power sensor is actually reporting values
-   - Look at the sensor's history graph to confirm it's active
-   - Try restarting the integration that provides the power sensor
-
-4. **Integration Requirements**
-   - The power sensor must be available before starting the Smart Dumb Appliance integration
-   - Try restarting Home Assistant to ensure all sensors are properly loaded
-
-If you're still having issues, please check the Home Assistant logs for more detailed error messages.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+By using this integration, you agree to this setup and understand the obligations under the chosen license.

@@ -1,12 +1,12 @@
 {
   "domain": "smart_dumb_appliance",
   "name": "Smart Dumb Appliance",
-  "codeowners": ["@BoringKraken"],
-  "config_flow": true,
-  "dependencies": [],
+  "version": "1.3.2",
   "documentation": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances",
-  "homeassistant": "2023.8.0",
-  "iot_standards": [],
+  "dependencies": [],
+  "codeowners": ["@boringkraken"],
   "requirements": [],
-  "version": "1.3.1"
+  "iot_class": "Local Polling",
+  "config_flow": true,
+  "homeassistant": "2025.3.4"
 }
