@@ -164,7 +164,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                 errors["base"] = threshold_errors[0]  # Show first error
             else:
                 # Create the configuration entry
-                return self.async_create_entry(
+            return self.async_create_entry(
                     title=user_input["device_name"],
                     data=user_input,
                 )
@@ -336,7 +336,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                         autocomplete="off",
                     )
                 ),
-            })
+        })
 
         return self.async_show_form(
             step_id="user",
@@ -499,9 +499,9 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                         unit_of_measurement="watts",
                         mode=NumberSelectorMode.BOX,
                     )
-                ),
-                vol.Optional(
-                    CONF_DEAD_ZONE,
+            ),
+            vol.Optional(
+                CONF_DEAD_ZONE,
                     default=current_data.get(CONF_DEAD_ZONE, defaults.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)),
                     description={
                         "suffix": " watts",
@@ -516,8 +516,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                         mode=NumberSelectorMode.BOX,
                     )
                 ),
-                vol.Optional(
-                    CONF_DEBOUNCE,
+            vol.Optional(
+                CONF_DEBOUNCE,
                     default=current_data.get(CONF_DEBOUNCE, defaults.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
                     description={
                         "suffix": " seconds",
