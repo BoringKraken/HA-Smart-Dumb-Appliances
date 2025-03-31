@@ -1,6 +1,5 @@
 """
 Sensor implementation for Smart Dumb Appliance.
-
 This module provides sensors that calculate various metrics for monitored appliances,
 such as operating costs based on power consumption and energy rates.
 """
