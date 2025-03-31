@@ -36,7 +36,6 @@ from .const import (
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT,
     DEFAULT_CONFIG,
-    AVAILABLE_APPLIANCES,
 )
 
 # Set up logging for this module
@@ -79,7 +78,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the configuration flow."""
         self._errors = {}  # Store any validation errors
         self._show_advanced = False
-        self._appliance_defaults = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
