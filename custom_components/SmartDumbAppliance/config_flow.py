@@ -27,6 +27,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
+    TextSelectorType,
     NumberSelector,
     NumberSelectorConfig,
     BooleanSelector,
@@ -203,6 +204,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
                 EntitySelectorConfig(
                     entity_category=None,
                     include_entities=power_sensors,
+                    multiple=False,
                 )
             ),
             vol.Optional(
@@ -215,7 +217,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
             ): EntitySelector(
                 EntitySelectorConfig(
                     entity_category=None,
-                    device_class="monetary",
+                    multiple=False,
                 )
             ),
             vol.Optional(
@@ -433,6 +435,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
                 EntitySelectorConfig(
                     entity_category=None,
                     include_entities=power_sensors,
+                    multiple=False,
                 )
             ),
             vol.Optional(
@@ -445,7 +448,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
             ): EntitySelector(
                 EntitySelectorConfig(
                     entity_category=None,
-                    device_class="monetary",
+                    multiple=False,
                 )
             ),
             vol.Optional(
