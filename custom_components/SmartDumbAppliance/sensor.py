@@ -552,15 +552,40 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
 
     async def async_update(self) -> None:
         """Update the current power sensor state."""
-        await super().async_update()
-        self._attr_native_value = self._last_power
-        self._attr_extra_state_attributes.update({
-            "is_running": self._was_on,
-            "cycle_energy": self._cycle_energy,
-            "cycle_cost": self._cycle_cost,
-        })
-        # Update icon and color based on power state
-        self._update_icon_and_color("on" if self._was_on else "off")
+        try:
+            # Get the power sensor state
+            power_state = self.hass.states.get(self._power_sensor)
+            if power_state is None:
+                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
+                self._attr_available = False
+                return
+
+            # Update the current power value
+            try:
+                current_power = float(power_state.state)
+                self._attr_native_value = current_power
+                self._attr_available = True
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid power value from sensor %s: %s", self._power_sensor, power_state.state)
+                self._attr_available = False
+                return
+
+            # Update the base class state
+            await super().async_update()
+
+            # Update attributes
+            self._attr_extra_state_attributes.update({
+                "is_running": self._was_on,
+                "cycle_energy": self._cycle_energy,
+                "cycle_cost": self._cycle_cost,
+            })
+
+            # Update icon and color based on power state
+            self._update_icon_and_color("on" if self._was_on else "off")
+
+        except Exception as e:
+            _LOGGER.error("Error updating current power sensor: %s", e)
+            self._attr_available = False
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
     """Binary sensor for tracking if an appliance is running."""
