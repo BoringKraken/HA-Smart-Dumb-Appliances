@@ -209,19 +209,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                 )
             ),
             vol.Optional(
-                CONF_COST_SENSOR,
-                default=user_input.get(CONF_COST_SENSOR) if user_input else None,
-                description={
-                    "suffix": " per kWh",
-                    "tooltip": "Select a sensor that provides the current cost of electricity per kilowatt-hour. This is used to calculate operating costs. Optional."
-                }
-            ): EntitySelector(
-                EntitySelectorConfig(
-                    entity_category=None,
-                    multiple=False,
-                )
-            ),
-            vol.Optional(
                 "show_advanced",
                 default=self._show_advanced,
                 description={
@@ -436,19 +423,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
                 EntitySelectorConfig(
                     entity_category=None,
                     include_entities=power_sensors,
-                    multiple=False,
-                )
-            ),
-            vol.Optional(
-                CONF_COST_SENSOR,
-                default=current_data.get(CONF_COST_SENSOR),
-                description={
-                    "suffix": " per kWh",
-                    "tooltip": "Select a sensor that provides the current cost of electricity per kilowatt-hour. This is used to calculate operating costs. Optional."
-                }
-            ): EntitySelector(
-                EntitySelectorConfig(
-                    entity_category=None,
                     multiple=False,
                 )
             ),

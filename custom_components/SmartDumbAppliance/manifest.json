@@ -8,6 +8,5 @@
   "homeassistant": "2023.8.0",
   "iot_standards": [],
   "requirements": [],
-  "version": "1.4.6",
-  "integration_type": "service"
+  "version": "1.3.1"
 }
