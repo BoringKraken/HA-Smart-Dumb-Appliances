@@ -293,36 +293,43 @@ async def async_setup_entry(
     config = config_entry.data
     device_name = config[CONF_DEVICE_NAME]
 
-    # Create the base class instance
-    base = SmartDumbApplianceBase(hass, config)
+    # Create a coordinator for the energy sensor
+    coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{device_name}_coordinator",
+        update_method=lambda: None,  # We'll handle updates in the sensor
+        update_interval=timedelta(seconds=1),
+    )
 
     # Create and add the sensors
     async_add_entities([
-        SmartDumbApplianceEnergySensor(base, device_name),
-        SmartDumbApplianceBinarySensor(base, device_name),
-        SmartDumbApplianceServiceSensor(base, device_name),
+        SmartDumbApplianceEnergySensor(hass, config_entry, coordinator),
+        SmartDumbApplianceBinarySensor(hass, config_entry, coordinator),
+        SmartDumbApplianceServiceSensor(hass, config_entry, coordinator),
     ])
 
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
     
-    def __init__(self, hass: HomeAssistant, config: dict) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: DataUpdateCoordinator) -> None:
         """Initialize the base sensor."""
         self.hass = hass
-        self.config = config
-        self._attr_name = config.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
-        self._attr_unique_id = f"{config.get('entry_id')}"
+        self.config_entry = config_entry
+        self.coordinator = coordinator
+        self._attr_name = config_entry.data.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
+        self._attr_unique_id = f"{config_entry.entry_id}"
         
         # Load configuration
-        self._power_sensor = config[CONF_POWER_SENSOR]
-        self._cost_sensor = config.get(CONF_COST_SENSOR)
-        self._start_watts = config.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-        self._stop_watts = config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._dead_zone = config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
-        self._debounce = config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
-        self._service_reminder = config.get(CONF_SERVICE_REMINDER, False)
-        self._service_reminder_count = config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
+        self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
+        self._cost_sensor = config_entry.data.get(CONF_COST_SENSOR)
+        self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+        self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
+        self._dead_zone = config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
+        self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        self._service_reminder = config_entry.data.get(CONF_SERVICE_REMINDER, False)
+        self._service_reminder_count = config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
+        self._service_reminder_message = config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
         
         # Get appropriate icon based on appliance name
         self._attr_icon = get_appliance_icon(self._attr_name)
@@ -469,8 +476,8 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
     ) -> None:
         """Initialize the energy usage sensor."""
         super().__init__(hass, config_entry, coordinator)
-        self._attr_name = f"{self._device_name} Energy Usage"
-        self._attr_unique_id = f"{self._device_name.lower().replace(' ', '_')}_energy_usage"
+        self._attr_name = f"{self._attr_name} Energy Usage"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_energy_usage"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -478,42 +485,16 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
         self._attr_should_poll = False
         self._attr_available = True
         self._attr_extra_state_attributes = {
-            "start_watts": self._config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS),
-            "stop_watts": self._config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS),
-            "dead_zone": self._config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE),
-            "debounce": self._config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE),
-            "power_sensor": self._config_entry.data.get(CONF_POWER_SENSOR),
-            "cost_sensor": self._config_entry.data.get(CONF_COST_SENSOR),
-            "service_reminder_enabled": self._config_entry.data.get(CONF_SERVICE_REMINDER, False),
-            "service_reminder_count": self._config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT),
-            "service_reminder_message": self._config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance"),
+            "start_watts": self._start_watts,
+            "stop_watts": self._stop_watts,
+            "dead_zone": self._dead_zone,
+            "debounce": self._debounce,
+            "power_sensor": self._power_sensor,
+            "cost_sensor": self._cost_sensor,
+            "service_reminder_enabled": self._service_reminder,
+            "service_reminder_count": self._service_reminder_count,
+            "service_reminder_message": self._service_reminder_message,
         }
-        self._energy_usage = 0.0
-        self._last_update = None
-        self._last_power = 0.0
-        self._is_running = False
-        self._start_time = None
-        self._last_state_change = None
-        self._service_count = 0
-        self._needs_service = False
-        self._service_message = ""
-        self._last_service_reset = None
-        self._last_energy_reset = None
-        self._last_cost_update = None
-        self._cost_per_kwh = 0.0
-        self._total_cost = 0.0
-        self._last_cost = 0.0
-        self._cost_sensor = None
-        self._cost_sensor_entity_id = self._config_entry.data.get(CONF_COST_SENSOR)
-        self._power_sensor = None
-        self._power_sensor_entity_id = self._config_entry.data.get(CONF_POWER_SENSOR)
-        self._start_watts = self._config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-        self._stop_watts = self._config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._dead_zone = self._config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
-        self._debounce = self._config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
-        self._service_reminder = self._config_entry.data.get(CONF_SERVICE_REMINDER, False)
-        self._service_reminder_count = self._config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = self._config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
         self._attr_has_entity_name = True
         self._attr_translation_key = "energy_usage"
 
@@ -542,13 +523,20 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
     """Binary sensor for tracking if an appliance is running."""
 
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+    ) -> None:
         """Initialize the binary sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Power State"
-        self._attr_unique_id = f"{device_name}_power_state"
+        super().__init__(hass, config_entry, coordinator)
+        self._attr_name = f"{self._attr_name} Power State"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_power_state"
         self._attr_device_class = BinarySensorDeviceClass.POWER
-        self._attr_icon = get_appliance_icon(device_name)
+        self._attr_icon = get_appliance_icon(self._attr_name)
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "power_state"
 
     async def async_update(self) -> None:
         """Update the binary sensor state."""
@@ -560,13 +548,20 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
 class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
     """Sensor for tracking service status of an appliance."""
 
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+    ) -> None:
         """Initialize the service sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Service Status"
-        self._attr_unique_id = f"{device_name}_service_status"
+        super().__init__(hass, config_entry, coordinator)
+        self._attr_name = f"{self._attr_name} Service Status"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_service_status"
         self._attr_native_value = "OK"
         self._attr_icon = get_status_icon("ok")
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "service_status"
 
     async def async_update(self) -> None:
         """Update the service sensor state."""
