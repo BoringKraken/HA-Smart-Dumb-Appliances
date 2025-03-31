@@ -108,33 +108,17 @@ def validate_watt_thresholds(data: dict[str, Any]) -> list[str]:
 
 def get_power_sensors(hass: HomeAssistant) -> list[str]:
     """
-    Get all available power sensors.
-    Includes any numerical sensor that measures power consumption.
+    Get all available entities that could be used as power sensors.
+    No restrictions on device class or unit of measurement.
     
     Args:
         hass: Home Assistant instance
         
     Returns:
-        list: List of power sensor entity IDs
+        list: List of entity IDs
     """
     entity_registry = er.async_get(hass)
-    power_sensors = []
-    
-    # Get all entities
-    for entity in entity_registry.entities.values():
-        # Skip non-numeric entities
-        if entity.device_class not in ["power", "energy"]:
-            continue
-            
-        # Skip entities without unit_of_measurement
-        if not entity.unit_of_measurement:
-            continue
-            
-        # Accept any sensor with W or kW as unit
-        if entity.unit_of_measurement in ["W", "kW"]:
-            power_sensors.append(entity.entity_id)
-    
-    return power_sensors
+    return [entity.entity_id for entity in entity_registry.entities.values()]
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb_appliance"):
     """Handle a config flow for Smart Dumb Appliance."""
@@ -213,7 +197,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
                 default=user_input.get(CONF_POWER_SENSOR) if user_input else None,
                 description={
                     "suffix": " watts",
-                    "tooltip": "Select any sensor that measures power consumption in watts (W) or kilowatts (kW). This can be from any power monitoring device or smart plug."
+                    "tooltip": "Select any sensor that measures power consumption. The integration will work with any numerical sensor that reports power values."
                 }
             ): EntitySelector(
                 EntitySelectorConfig(
@@ -443,7 +427,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb
                 default=current_data.get(CONF_POWER_SENSOR),
                 description={
                     "suffix": " watts",
-                    "tooltip": "Select any sensor that measures power consumption in watts (W) or kilowatts (kW). This can be from any power monitoring device or smart plug."
+                    "tooltip": "Select any sensor that measures power consumption. The integration will work with any numerical sensor that reports power values."
                 }
             ): EntitySelector(
                 EntitySelectorConfig(
