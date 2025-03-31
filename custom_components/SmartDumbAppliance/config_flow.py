@@ -121,10 +121,12 @@ def get_power_sensors(hass: HomeAssistant) -> list[str]:
     entity_registry = er.async_get(hass)
     return [entity.entity_id for entity in entity_registry.entities.values()]
 
-class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain="smart_dumb_appliance"):
+class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Smart Dumb Appliance."""
 
     VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
+    DOMAIN = "smart_dumb_appliance"
 
     def __init__(self):
         """Initialize the configuration flow."""
