@@ -31,7 +31,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Smart Dumb Appliance from a ConfigEntry."""
+    """Set up Smart Dumb Appliance from a config entry."""
     _LOGGER.info("Setting up entry: %s", entry.entry_id)
     
     # Forward the setup to the sensor and binary_sensor platforms
@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload Smart Dumb Appliance ConfigEntry."""
+    """Unload a config entry."""
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
     
     # Unload platforms

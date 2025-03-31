@@ -1,0 +1,51 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured",
+            "no_power_sensors": "No power sensors found. Please set up power monitoring first."
+        },
+        "error": {
+            "invalid_watts": "Invalid watt thresholds. Stop watts must be less than start watts, and dead zone must be less than stop watts."
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "device_name": "Device Name",
+                    "power_sensor": "Power Sensor",
+                    "cost_sensor": "Cost Sensor (Optional)",
+                    "show_advanced": "Show Advanced Options",
+                    "start_watts": "Start Watts",
+                    "stop_watts": "Stop Watts",
+                    "dead_zone": "Dead Zone",
+                    "debounce": "Debounce Time",
+                    "service_reminder": "Enable Service Reminder",
+                    "service_reminder_count": "Service Reminder Count",
+                    "service_reminder_message": "Service Reminder Message"
+                },
+                "description": "Configure your appliance monitoring",
+                "title": "Smart Dumb Appliance Setup"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "device_name": "Device Name",
+                    "power_sensor": "Power Sensor",
+                    "cost_sensor": "Cost Sensor (Optional)",
+                    "show_advanced": "Show Advanced Options",
+                    "start_watts": "Start Watts",
+                    "stop_watts": "Stop Watts",
+                    "dead_zone": "Dead Zone",
+                    "debounce": "Debounce Time",
+                    "service_reminder": "Enable Service Reminder",
+                    "service_reminder_count": "Service Reminder Count",
+                    "service_reminder_message": "Service Reminder Message"
+                },
+                "description": "Configure your appliance monitoring",
+                "title": "Smart Dumb Appliance Options"
+            }
+        }
+    }
+} 
