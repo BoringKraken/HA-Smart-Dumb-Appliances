@@ -18,8 +18,8 @@ import base64
 from io import BytesIO
 from PIL import Image, ImageDraw
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -49,7 +49,8 @@ from .const import (
     ATTR_USE_COUNT,
     ATTR_LAST_SERVICE,
     ATTR_NEXT_SERVICE,
-    ATTR_SERVICE_MESSAGE
+    ATTR_SERVICE_MESSAGE,
+    CONF_DEVICE_NAME,
 )
 
 # Set up logging for this module
@@ -282,44 +283,44 @@ def get_status_icon(status: str, power_state: bool = None) -> tuple[str, str]:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """
-    Set up the Smart Dumb Appliance sensors.
-    
-    This function is called when Home Assistant is setting up the integration.
-    It creates:
-    1. Main energy sensor with detailed attributes
-    2. Binary sensor for on/off state
-    3. Service status sensor for maintenance tracking
-    """
-    device_name = entry.data.get("device_name", "Smart Dumb Appliance")
+    """Set up the Smart Dumb Appliance sensors from a config entry."""
+    # Get the configuration data
+    config = config_entry.data
+    device_name = config[CONF_DEVICE_NAME]
+
+    # Create the base class instance
+    base = SmartDumbApplianceBase(hass, config)
+
+    # Create and add the sensors
     async_add_entities([
-        SmartDumbApplianceEnergySensor(entry),
-        SmartDumbApplianceBinarySensor(entry),
-        SmartDumbApplianceServiceSensor(entry)
+        SmartDumbApplianceEnergySensor(base, device_name),
+        SmartDumbApplianceBinarySensor(base, device_name),
+        SmartDumbApplianceServiceSensor(base, device_name),
     ])
 
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
     
-    def __init__(self, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, config: dict) -> None:
         """Initialize the base sensor."""
-        self._entry = entry
-        self._attr_name = entry.data.get("device_name", "Smart Dumb Appliance")
-        self._attr_unique_id = f"{entry.entry_id}"
+        self.hass = hass
+        self.config = config
+        self._attr_name = config.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
+        self._attr_unique_id = f"{config.get('entry_id')}"
         
         # Load configuration
-        self._power_sensor = entry.data[CONF_POWER_SENSOR]
-        self._cost_sensor = entry.data.get(CONF_COST_SENSOR)
-        self._start_watts = entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-        self._stop_watts = entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._dead_zone = entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
-        self._debounce = entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
-        self._service_reminder = entry.data.get(CONF_SERVICE_REMINDER, False)
-        self._service_reminder_count = entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
+        self._power_sensor = config[CONF_POWER_SENSOR]
+        self._cost_sensor = config.get(CONF_COST_SENSOR)
+        self._start_watts = config.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+        self._stop_watts = config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
+        self._dead_zone = config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
+        self._debounce = config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        self._service_reminder = config.get(CONF_SERVICE_REMINDER, False)
+        self._service_reminder_count = config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
+        self._service_reminder_message = config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
         
         # Get appropriate icon based on appliance name
         self._attr_icon = get_appliance_icon(self._attr_name)
@@ -456,16 +457,18 @@ class SmartDumbApplianceBase:
             return
 
 class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
-    """Main energy sensor with detailed attributes."""
-    
-    def __init__(self, entry: ConfigEntry) -> None:
+    """Sensor for tracking energy usage of an appliance."""
+
+    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
         """Initialize the energy sensor."""
-        super().__init__(entry)
-        self._attr_unique_id = f"{entry.entry_id}_energy"
+        super().__init__(base.hass, base.config)
+        self._attr_name = f"{device_name} Energy Usage"
+        self._attr_unique_id = f"{device_name}_energy_usage"
         self._attr_native_value = 0.0
         self._attr_native_unit_of_measurement = "kWh"
-        self._attr_device_class = "energy"
-        self._attr_state_class = "total_increasing"
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_icon = get_appliance_icon(device_name)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -490,14 +493,15 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
         self._update_icon_and_color("on" if self._was_on else "off")
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
-    """Binary sensor for appliance on/off state."""
-    
-    def __init__(self, entry: ConfigEntry) -> None:
+    """Binary sensor for tracking if an appliance is running."""
+
+    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
         """Initialize the binary sensor."""
-        super().__init__(entry)
-        self._attr_unique_id = f"{entry.entry_id}_state"
-        self._attr_device_class = "power"
-        self._attr_is_on = False
+        super().__init__(base.hass, base.config)
+        self._attr_name = f"{device_name} Power State"
+        self._attr_unique_id = f"{device_name}_power_state"
+        self._attr_device_class = BinarySensorDeviceClass.POWER
+        self._attr_icon = get_appliance_icon(device_name)
 
     async def async_update(self) -> None:
         """Update the binary sensor state."""
@@ -507,14 +511,15 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
         self._update_icon_and_color("on" if self._was_on else "off")
 
 class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for service status."""
-    
-    def __init__(self, entry: ConfigEntry) -> None:
+    """Sensor for tracking service status of an appliance."""
+
+    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
         """Initialize the service sensor."""
-        super().__init__(entry)
-        self._attr_unique_id = f"{entry.entry_id}_service"
-        self._attr_native_value = "ok"
-        self._update_icon_and_color("ok")
+        super().__init__(base.hass, base.config)
+        self._attr_name = f"{device_name} Service Status"
+        self._attr_unique_id = f"{device_name}_service_status"
+        self._attr_native_value = "OK"
+        self._attr_icon = get_status_icon("ok")
 
     async def async_update(self) -> None:
         """Update the service sensor state."""

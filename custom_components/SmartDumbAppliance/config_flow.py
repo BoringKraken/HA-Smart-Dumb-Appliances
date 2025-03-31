@@ -193,4 +193,190 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         This method allows users to modify the settings of an existing
         appliance configuration.
         """
-        return await self.async_step_user(user_input)
+        # Get the current configuration
+        current_config = self.config_entry.data
+
+        # If user input is provided, update the configuration
+        if user_input is not None:
+            # Validate the watt thresholds
+            threshold_errors = validate_watt_thresholds(user_input)
+            if threshold_errors:
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=vol.Schema({
+                        vol.Required(
+                            "device_name",
+                            default=user_input.get("device_name", current_config.get("device_name")),
+                            description={
+                                "tooltip": "Enter a name for this appliance. This will be used to identify it in Home Assistant and for all related entities."
+                            }
+                        ): str,
+                        vol.Required(
+                            CONF_POWER_SENSOR,
+                            default=user_input.get(CONF_POWER_SENSOR, current_config.get(CONF_POWER_SENSOR)),
+                            description={
+                                "suffix": " watts",
+                                "tooltip": "Select any sensor that measures power consumption. The integration will work with any numerical sensor that reports power values."
+                            }
+                        ): selector.EntitySelector(
+                            selector.EntitySelectorConfig(
+                                entity_category=None,
+                                domain=["sensor"],
+                                multiple=False,
+                            )
+                        ),
+                        vol.Optional(
+                            "show_advanced",
+                            default=self._show_advanced,
+                            description={
+                                "tooltip": "Show advanced configuration options"
+                            }
+                        ): bool,
+                    }),
+                    errors={"base": threshold_errors[0]},
+                )
+
+            # Update the configuration entry
+            return self.async_update_reload_and_abort(
+                self.config_entry,
+                data=user_input,
+                reason="reconfigure_successful",
+                description_placeholders={
+                    "device_name": user_input["device_name"]
+                }
+            )
+
+        # Create the schema with current values
+        schema = {
+            vol.Required(
+                "device_name",
+                default=current_config.get("device_name"),
+                description={
+                    "tooltip": "Enter a name for this appliance. This will be used to identify it in Home Assistant and for all related entities."
+                }
+            ): str,
+            vol.Required(
+                CONF_POWER_SENSOR,
+                default=current_config.get(CONF_POWER_SENSOR),
+                description={
+                    "suffix": " watts",
+                    "tooltip": "Select any sensor that measures power consumption. The integration will work with any numerical sensor that reports power values."
+                }
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    entity_category=None,
+                    domain=["sensor"],
+                    multiple=False,
+                )
+            ),
+            vol.Optional(
+                "show_advanced",
+                default=self._show_advanced,
+                description={
+                    "tooltip": "Show advanced configuration options"
+                }
+            ): bool,
+        }
+
+        # Add advanced options if enabled
+        if self._show_advanced:
+            schema.update({
+                vol.Optional(
+                    CONF_START_WATTS,
+                    default=current_config.get(CONF_START_WATTS, DEFAULT_CONFIG[CONF_START_WATTS]),
+                    description={
+                        "suffix": " watts",
+                        "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts. When power exceeds this value, the appliance is considered 'on'."
+                    }
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.1,
+                        max=10000,
+                        step=0.1,
+                        unit_of_measurement="watts",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_STOP_WATTS,
+                    default=current_config.get(CONF_STOP_WATTS, DEFAULT_CONFIG[CONF_STOP_WATTS]),
+                    description={
+                        "suffix": " watts",
+                        "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts. When power drops below this value, the appliance is considered 'off'."
+                    }
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.1,
+                        max=10000,
+                        step=0.1,
+                        unit_of_measurement="watts",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_DEAD_ZONE,
+                    default=current_config.get(CONF_DEAD_ZONE, DEFAULT_CONFIG[CONF_DEAD_ZONE]),
+                    description={
+                        "suffix": " watts",
+                        "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts. Prevents false readings from standby power."
+                    }
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.1,
+                        max=10000,
+                        step=0.1,
+                        unit_of_measurement="watts",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_DEBOUNCE,
+                    default=current_config.get(CONF_DEBOUNCE, DEFAULT_CONFIG[CONF_DEBOUNCE]),
+                    description={
+                        "suffix": " seconds",
+                        "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling from power fluctuations. Higher values make the detection more stable but less responsive."
+                    }
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1,
+                        max=60,
+                        step=1,
+                        unit_of_measurement="seconds",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_SERVICE_REMINDER,
+                    default=current_config.get(CONF_SERVICE_REMINDER, DEFAULT_CONFIG[CONF_SERVICE_REMINDER]),
+                    description={
+                        "tooltip": "Enable service reminders to track appliance usage and notify you when maintenance is needed. When enabled, you can set the number of uses before a reminder."
+                    }
+                ): bool,
+                vol.Optional(
+                    CONF_SERVICE_REMINDER_COUNT,
+                    default=current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_COUNT]),
+                    description={
+                        "tooltip": "Number of times the appliance can be used before showing a service reminder. Only applies if service reminders are enabled."
+                    }
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1,
+                        max=1000,
+                        step=1,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_SERVICE_REMINDER_MESSAGE,
+                    default=current_config.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_MESSAGE]),
+                    description={
+                        "tooltip": "Custom message to show when service is needed. If left empty, a default message will be used. The message will reset after the next use."
+                    }
+                ): str,
+            })
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(schema),
+            errors=self._errors,
+        )
