@@ -319,7 +319,7 @@ class SmartDumbApplianceBase:
         self._debounce = entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
         self._service_reminder = entry.data.get(CONF_SERVICE_REMINDER, False)
         self._service_reminder_count = entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
+        self._service_reminder_message = None  # Default to None
         
         # Get appropriate icon based on appliance name
         self._attr_icon = get_appliance_icon(self._attr_name)
@@ -397,6 +397,7 @@ class SmartDumbApplianceBase:
                 self._end_time = None
                 self._cycle_energy = 0.0
                 self._cycle_cost = 0.0
+                self._service_reminder_message = None  # Reset message when new cycle starts
                 _LOGGER.info(
                     "%s turned on (Power: %.1fW, Start threshold: %.1fW)",
                     self._attr_name,
@@ -426,6 +427,7 @@ class SmartDumbApplianceBase:
                 if self._service_reminder and self._use_count >= self._service_reminder_count:
                     self._last_service = self._next_service or now
                     self._next_service = now + timedelta(days=1)
+                    self._service_reminder_message = entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
                     _LOGGER.info(
                         "Service reminder for %s: %s (Use count: %d/%d)",
                         self._attr_name,
@@ -462,17 +464,20 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
         """Initialize the energy sensor."""
         super().__init__(entry)
         self._attr_unique_id = f"{entry.entry_id}_energy"
+        self._attr_name = f"{self._attr_name} Energy Usage"
+        self._attr_friendly_name = f"{self._attr_name} Energy Consumption"
         self._attr_native_value = 0.0
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = "energy"
         self._attr_state_class = "total_increasing"
+        self._attr_suggested_display_precision = 2
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional state attributes."""
         return {
-            ATTR_POWER_USAGE: self._last_power,
-            ATTR_TOTAL_COST: self._total_cost,
+            ATTR_POWER_USAGE: round(self._last_power, 2),
+            ATTR_TOTAL_COST: round(self._total_cost, 2),
             ATTR_LAST_UPDATE: self._last_update,
             ATTR_START_TIME: self._start_time,
             ATTR_END_TIME: self._end_time,
@@ -496,6 +501,8 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
         """Initialize the binary sensor."""
         super().__init__(entry)
         self._attr_unique_id = f"{entry.entry_id}_state"
+        self._attr_name = f"{self._attr_name} Power State"
+        self._attr_friendly_name = f"{self._attr_name} Operating Status"
         self._attr_device_class = "power"
         self._attr_is_on = False
 
@@ -513,6 +520,8 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
         """Initialize the service sensor."""
         super().__init__(entry)
         self._attr_unique_id = f"{entry.entry_id}_service"
+        self._attr_name = f"{self._attr_name} Service Status"
+        self._attr_friendly_name = f"{self._attr_name} Maintenance Status"
         self._attr_native_value = "ok"
         self._update_icon_and_color("ok")
 

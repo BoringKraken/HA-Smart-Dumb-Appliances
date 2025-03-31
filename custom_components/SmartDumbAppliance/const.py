@@ -1,42 +1,147 @@
 """
-Constants used throughout the Smart Dumb Appliance integration.
+Constants for Smart Dumb Appliance integration.
 
-This module defines all the constant values used in the integration,
-including configuration keys, attribute names, and default values.
+This module defines all the constants used throughout the integration,
+including configuration keys, default values, and attribute names.
 """
 
-# Integration domain name - this is how Home Assistant identifies our integration
-DOMAIN = "smart_dumb_appliance"
+from typing import Final
 
-# Default name for the integration - shown in the Home Assistant UI
-DEFAULT_NAME = "Smart Dumb Appliance"
+# Domain name for the integration
+DOMAIN: Final = "smart_dumb_appliance"
 
-# Configuration keys - these are the settings that users can configure in the UI
-CONF_DEVICE_NAME = "device_name"          # The friendly name for the appliance (e.g., "Washing Machine")
-CONF_POWER_SENSOR = "power_sensor"        # The sensor that measures power consumption in watts
-CONF_COST_SENSOR = "cost_sensor"          # The sensor that provides cost per kWh (e.g., energy rate)
-CONF_START_WATTS = "start_watts"          # Power threshold that indicates appliance has started
-CONF_STOP_WATTS = "stop_watts"            # Power threshold that indicates appliance has stopped
-CONF_DEAD_ZONE = "dead_zone"              # Minimum power threshold to consider appliance as "on" (safety check)
-CONF_DEBOUNCE = "debounce"                # Time to wait before confirming state changes
-CONF_SERVICE_REMINDER = "service_reminder"  # Whether to enable service reminders
-CONF_SERVICE_REMINDER_COUNT = "service_reminder_count"  # Number of uses before service reminder
-CONF_SERVICE_REMINDER_MESSAGE = "service_reminder_message"  # Custom message for service reminder
+# Configuration keys
+CONF_POWER_SENSOR: Final = "power_sensor"
+CONF_COST_SENSOR: Final = "cost_sensor"
+CONF_START_WATTS: Final = "start_watts"
+CONF_STOP_WATTS: Final = "stop_watts"
+CONF_DEAD_ZONE: Final = "dead_zone"
+CONF_DEBOUNCE: Final = "debounce"
+CONF_SERVICE_REMINDER: Final = "service_reminder"
+CONF_SERVICE_REMINDER_COUNT: Final = "service_reminder_count"
+CONF_SERVICE_REMINDER_MESSAGE: Final = "service_reminder_message"
 
-# Attribute names for the appliance state - these are the data points we track
-ATTR_START_TIME = "start_time"      # When the appliance started running
-ATTR_END_TIME = "end_time"          # When the appliance finished running
-ATTR_LAST_UPDATE = "last_update"    # When we last checked the appliance's status
-ATTR_POWER_USAGE = "power_usage"    # Current power consumption in watts
-ATTR_TOTAL_COST = "total_cost"      # Total cost of operation in your currency
-ATTR_USE_COUNT = "use_count"        # How many times the appliance has been used
-ATTR_LAST_SERVICE = "last_service"  # When the appliance was last serviced
-ATTR_NEXT_SERVICE = "next_service"  # When the appliance needs next service
-ATTR_SERVICE_MESSAGE = "service_message"  # Custom message for service reminder
+# Default values
+DEFAULT_START_WATTS: Final = 5.0
+DEFAULT_STOP_WATTS: Final = 2.0
+DEFAULT_DEAD_ZONE: Final = 1.0
+DEFAULT_DEBOUNCE: Final = 5
+DEFAULT_SERVICE_REMINDER_COUNT: Final = 30
 
-# Default values - these are used if the user doesn't specify their own values
-DEFAULT_START_WATTS = 5.0           # Default start threshold (5 watts)
-DEFAULT_STOP_WATTS = 2.0            # Default stop threshold (2 watts)
-DEFAULT_DEAD_ZONE = 0.1             # Default power threshold (0.1 watts) - safety check
-DEFAULT_DEBOUNCE = 0.5              # Default debounce time (0.5 seconds)
-DEFAULT_SERVICE_REMINDER_COUNT = 50  # Default number of uses before service reminder
+# Attribute names
+ATTR_POWER_USAGE: Final = "power_usage"
+ATTR_TOTAL_COST: Final = "total_cost"
+ATTR_LAST_UPDATE: Final = "last_update"
+ATTR_START_TIME: Final = "start_time"
+ATTR_END_TIME: Final = "end_time"
+ATTR_USE_COUNT: Final = "use_count"
+ATTR_LAST_SERVICE: Final = "last_service"
+ATTR_NEXT_SERVICE: Final = "next_service"
+ATTR_SERVICE_MESSAGE: Final = "service_message"
+
+# Appliance-specific default configurations
+APPLIANCE_DEFAULTS: Final = {
+    # Kitchen appliances
+    "dishwasher": {
+        "start_watts": 1200.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 30,
+        "service_reminder_message": "Time to clean the filter and check for debris",
+    },
+    "washing machine": {
+        "start_watts": 500.0,
+        "stop_watts": 50.0,
+        "dead_zone": 25.0,
+        "service_reminder": True,
+        "service_reminder_count": 30,
+        "service_reminder_message": "Time to clean the filter and check for debris",
+    },
+    "dryer": {
+        "start_watts": 3000.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 2,
+        "service_reminder_message": "Time to clean the lint trap",
+    },
+    "refrigerator": {
+        "start_watts": 150.0,
+        "stop_watts": 50.0,
+        "dead_zone": 25.0,
+        "service_reminder": True,
+        "service_reminder_count": 90,
+        "service_reminder_message": "Time to clean the coils and check seals",
+    },
+    "freezer": {
+        "start_watts": 150.0,
+        "stop_watts": 50.0,
+        "dead_zone": 25.0,
+        "service_reminder": True,
+        "service_reminder_count": 90,
+        "service_reminder_message": "Time to defrost and clean",
+    },
+    "oven": {
+        "start_watts": 2400.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 20,
+        "service_reminder_message": "Time to clean the oven",
+    },
+    "microwave": {
+        "start_watts": 1000.0,
+        "stop_watts": 50.0,
+        "dead_zone": 25.0,
+        "service_reminder": True,
+        "service_reminder_count": 50,
+        "service_reminder_message": "Time to clean the microwave",
+    },
+    
+    # HVAC
+    "air conditioner": {
+        "start_watts": 1500.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 90,
+        "service_reminder_message": "Time to clean the filter and check refrigerant",
+    },
+    "heater": {
+        "start_watts": 1500.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 90,
+        "service_reminder_message": "Time to clean the filter and check for debris",
+    },
+    "heat pump": {
+        "start_watts": 1500.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 90,
+        "service_reminder_message": "Time to clean the filter and check refrigerant",
+    },
+    
+    # Water heating
+    "water heater": {
+        "start_watts": 4500.0,
+        "stop_watts": 100.0,
+        "dead_zone": 50.0,
+        "service_reminder": True,
+        "service_reminder_count": 180,
+        "service_reminder_message": "Time to flush the tank and check anode rod",
+    },
+    
+    # Default configuration for unknown appliances
+    "default": {
+        "start_watts": DEFAULT_START_WATTS,
+        "stop_watts": DEFAULT_STOP_WATTS,
+        "dead_zone": DEFAULT_DEAD_ZONE,
+        "service_reminder": False,
+        "service_reminder_count": DEFAULT_SERVICE_REMINDER_COUNT,
+        "service_reminder_message": "Time for maintenance",
+    },
+}
