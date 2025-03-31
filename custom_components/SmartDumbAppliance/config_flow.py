@@ -35,7 +35,7 @@ from .const import (
     DEFAULT_DEAD_ZONE,
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT,
-    APPLIANCE_DEFAULTS,
+    DEFAULT_CONFIG,
     AVAILABLE_APPLIANCES,
 )
 
@@ -101,13 +101,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._show_advanced = user_input["show_advanced"]
                 return await self.async_step_user(None)
             
-            # Get appliance defaults if appliance type is selected
-            if "appliance_type" in user_input:
-                appliance_type = user_input["appliance_type"].lower()
-                if appliance_type != "custom":
-                    self._appliance_defaults = get_appliance_defaults(appliance_type)
-                    return await self.async_step_user(None)
-            
             # Validate the watt thresholds
             threshold_errors = validate_watt_thresholds(user_input)
             if threshold_errors:
@@ -146,18 +139,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             vol.Required(
-                "appliance_type",
-                default=user_input.get("appliance_type", "Custom") if user_input else "Custom",
-                description={
-                    "tooltip": "Select the type of appliance to use predefined settings, or choose Custom to set your own values."
-                }
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=AVAILABLE_APPLIANCES,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Required(
                 CONF_POWER_SENSOR,
                 default=user_input.get(CONF_POWER_SENSOR) if user_input else None,
                 description={
@@ -171,15 +152,23 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     multiple=False,
                 )
             ),
+            vol.Optional(
+                "show_advanced",
+                default=self._show_advanced,
+                description={
+                    "tooltip": "Show advanced configuration options"
+                }
+            ): selector.BooleanSelector(
+                selector.BooleanSelectorConfig()
+            ),
         }
 
-        # Add advanced options if enabled or if Custom is selected
-        if self._show_advanced or (user_input and user_input.get("appliance_type") == "Custom"):
-            defaults = self._appliance_defaults or get_appliance_defaults(user_input.get("appliance_type", "Custom"))
+        # Add advanced options if enabled
+        if self._show_advanced:
             schema.update({
                 vol.Optional(
                     CONF_START_WATTS,
-                    default=user_input.get(CONF_START_WATTS, defaults.get(CONF_START_WATTS, DEFAULT_START_WATTS)),
+                    default=user_input.get(CONF_START_WATTS, DEFAULT_CONFIG[CONF_START_WATTS]),
                     description={
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts. When power exceeds this value, the appliance is considered 'on'."
@@ -195,7 +184,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_STOP_WATTS,
-                    default=user_input.get(CONF_STOP_WATTS, defaults.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)),
+                    default=user_input.get(CONF_STOP_WATTS, DEFAULT_CONFIG[CONF_STOP_WATTS]),
                     description={
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts. When power drops below this value, the appliance is considered 'off'."
@@ -211,7 +200,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_DEAD_ZONE,
-                    default=user_input.get(CONF_DEAD_ZONE, defaults.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)),
+                    default=user_input.get(CONF_DEAD_ZONE, DEFAULT_CONFIG[CONF_DEAD_ZONE]),
                     description={
                         "suffix": " watts",
                         "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts. Prevents false readings from standby power."
@@ -227,7 +216,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_DEBOUNCE,
-                    default=user_input.get(CONF_DEBOUNCE, defaults.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
+                    default=user_input.get(CONF_DEBOUNCE, DEFAULT_CONFIG[CONF_DEBOUNCE]),
                     description={
                         "suffix": " seconds",
                         "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling from power fluctuations. Higher values make the detection more stable but less responsive."
@@ -243,7 +232,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER,
-                    default=user_input.get(CONF_SERVICE_REMINDER, defaults.get(CONF_SERVICE_REMINDER, False)),
+                    default=user_input.get(CONF_SERVICE_REMINDER, DEFAULT_CONFIG[CONF_SERVICE_REMINDER]),
                     description={
                         "tooltip": "Enable service reminders to track appliance usage and notify you when maintenance is needed. When enabled, you can set the number of uses before a reminder."
                     }
@@ -252,7 +241,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER_COUNT,
-                    default=user_input.get(CONF_SERVICE_REMINDER_COUNT, defaults.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)),
+                    default=user_input.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_COUNT]),
                     description={
                         "tooltip": "Number of times the appliance can be used before showing a service reminder. Only applies if service reminders are enabled."
                     }
@@ -266,7 +255,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER_MESSAGE,
-                    default=user_input.get(CONF_SERVICE_REMINDER_MESSAGE, defaults.get(CONF_SERVICE_REMINDER_MESSAGE)),
+                    default=user_input.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_MESSAGE]),
                     description={
                         "tooltip": "Custom message to show when service is needed. If left empty, a default message will be used. The message will reset after the next use."
                     }
