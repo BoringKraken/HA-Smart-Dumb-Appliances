@@ -304,7 +304,8 @@ async def async_setup_entry(
 
     # Create and add the sensors
     async_add_entities([
-        SmartDumbApplianceEnergySensor(hass, config_entry, coordinator),
+        SmartDumbApplianceCumulativeEnergySensor(hass, config_entry, coordinator),
+        SmartDumbApplianceCurrentPowerSensor(hass, config_entry, coordinator),
         SmartDumbApplianceBinarySensor(hass, config_entry, coordinator),
         SmartDumbApplianceServiceSensor(hass, config_entry, coordinator),
     ])
@@ -465,8 +466,8 @@ class SmartDumbApplianceBase:
             _LOGGER.error("Error updating sensor: %s", err)
             return
 
-class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking energy usage of a smart dumb appliance."""
+class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEntity):
+    """Sensor for tracking cumulative energy usage of a smart dumb appliance."""
 
     def __init__(
         self,
@@ -474,13 +475,64 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
         config_entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
     ) -> None:
-        """Initialize the energy usage sensor."""
+        """Initialize the cumulative energy sensor."""
         super().__init__(hass, config_entry, coordinator)
-        self._attr_name = f"{self._attr_name} Energy Usage"
-        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_energy_usage"
+        self._attr_name = f"{self._attr_name} Cumulative Energy"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_cumulative_energy"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_should_poll = False
+        self._attr_available = True
+        self._attr_extra_state_attributes = {
+            "total_cost": 0.0,
+            "last_update": None,
+            "start_time": None,
+            "end_time": None,
+            "use_count": 0,
+            "last_service": None,
+            "next_service": None,
+            "service_reminder_enabled": False,
+            "service_reminder_count": 0,
+            "service_reminder_message": None,
+        }
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "cumulative_energy"
+
+    async def async_update(self) -> None:
+        """Update the cumulative energy sensor state."""
+        await super().async_update()
+        self._attr_native_value = self._total_energy
+        self._attr_extra_state_attributes.update({
+            "total_cost": self._total_cost,
+            "last_update": self._last_update,
+            "start_time": self._start_time,
+            "end_time": self._end_time,
+            "use_count": self._use_count,
+            "last_service": self._last_service,
+            "next_service": self._next_service,
+            "service_reminder_enabled": self._service_reminder,
+            "service_reminder_count": self._service_reminder_count,
+            "service_reminder_message": self._service_reminder_message if self._service_reminder else None,
+        })
+
+class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity):
+    """Sensor for tracking current power usage and thresholds."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+    ) -> None:
+        """Initialize the current power sensor."""
+        super().__init__(hass, config_entry, coordinator)
+        self._attr_name = f"{self._attr_name} Current Power"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_current_power"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_native_unit_of_measurement = "W"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_should_poll = False
         self._attr_available = True
@@ -491,32 +543,22 @@ class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
             "debounce": self._debounce,
             "power_sensor": self._power_sensor,
             "cost_sensor": self._cost_sensor,
-            "service_reminder_enabled": self._service_reminder,
-            "service_reminder_count": self._service_reminder_count,
-            "service_reminder_message": self._service_reminder_message,
+            "is_running": False,
+            "cycle_energy": 0.0,
+            "cycle_cost": 0.0,
         }
         self._attr_has_entity_name = True
-        self._attr_translation_key = "energy_usage"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return additional state attributes."""
-        return {
-            ATTR_POWER_USAGE: self._last_power,
-            ATTR_TOTAL_COST: self._total_cost,
-            ATTR_LAST_UPDATE: self._last_update,
-            ATTR_START_TIME: self._start_time,
-            ATTR_END_TIME: self._end_time,
-            ATTR_USE_COUNT: self._use_count,
-            ATTR_LAST_SERVICE: self._last_service,
-            ATTR_NEXT_SERVICE: self._next_service,
-            ATTR_SERVICE_MESSAGE: self._service_reminder_message if self._service_reminder else None,
-        }
+        self._attr_translation_key = "current_power"
 
     async def async_update(self) -> None:
-        """Update the energy sensor state."""
+        """Update the current power sensor state."""
         await super().async_update()
-        self._attr_native_value = self._total_energy
+        self._attr_native_value = self._last_power
+        self._attr_extra_state_attributes.update({
+            "is_running": self._was_on,
+            "cycle_energy": self._cycle_energy,
+            "cycle_cost": self._cycle_cost,
+        })
         # Update icon and color based on power state
         self._update_icon_and_color("on" if self._was_on else "off")
 
