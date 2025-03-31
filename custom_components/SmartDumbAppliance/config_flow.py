@@ -22,12 +22,16 @@ from .const import (
     DOMAIN,
     CONF_POWER_SENSOR,
     CONF_COST_SENSOR,
+    CONF_START_WATTS,
+    CONF_STOP_WATTS,
     CONF_DEAD_ZONE,
     CONF_DEBOUNCE,
     CONF_DEVICE_NAME,
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_COUNT,
     CONF_SERVICE_REMINDER_MESSAGE,
+    DEFAULT_START_WATTS,
+    DEFAULT_STOP_WATTS,
     DEFAULT_DEAD_ZONE,
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT
@@ -35,6 +39,28 @@ from .const import (
 
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)
+
+def validate_watt_thresholds(data: dict[str, Any]) -> dict[str, str]:
+    """
+    Validate that watt thresholds are in the correct order.
+    
+    Args:
+        data: The configuration data to validate
+        
+    Returns:
+        dict: Any validation errors found
+    """
+    errors = {}
+    
+    # Check that stop watts is less than start watts
+    if data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS) >= data.get(CONF_START_WATTS, DEFAULT_START_WATTS):
+        errors[CONF_STOP_WATTS] = "Stop watts must be less than start watts"
+    
+    # Check that dead zone is less than stop watts
+    if data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE) >= data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS):
+        errors[CONF_DEAD_ZONE] = "Dead zone must be less than stop watts"
+    
+    return errors
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """
@@ -61,37 +87,94 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         It shows a form with all the necessary fields for configuring an appliance:
         - Device name (required)
         - Power sensor (required)
+        - Start/Stop watt thresholds (required)
         - Cost sensor (optional)
         - Dead zone (optional)
         - Debounce time (optional)
         - Service reminder settings (optional)
         """
         if user_input is not None:
-            # User has submitted the form, create the configuration entry
-            return self.async_create_entry(
-                title=user_input[CONF_DEVICE_NAME],
-                data=user_input
-            )
+            # Validate the input
+            self._errors = validate_watt_thresholds(user_input)
+            
+            if not self._errors:
+                # User has submitted the form, create the configuration entry
+                return self.async_create_entry(
+                    title=user_input[CONF_DEVICE_NAME],
+                    data=user_input
+                )
 
         # Create the configuration form
         schema = vol.Schema({
             # Required fields
-            vol.Required(CONF_DEVICE_NAME, default="My Appliance"): str,
-            vol.Required(CONF_POWER_SENSOR): selector.EntitySelector(
+            vol.Required(
+                CONF_DEVICE_NAME,
+                default="My Appliance",
+                description={"suffix": "Name shown in Home Assistant"}
+            ): str,
+            vol.Required(
+                CONF_POWER_SENSOR,
+                description={"suffix": "Sensor that measures power in watts"}
+            ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor"])
             ),
+            vol.Required(
+                CONF_START_WATTS,
+                default=DEFAULT_START_WATTS,
+                description={
+                    "suffix": " watts",
+                    "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts."
+                }
+            ): vol.Coerce(float),
+            vol.Required(
+                CONF_STOP_WATTS,
+                default=DEFAULT_STOP_WATTS,
+                description={
+                    "suffix": " watts",
+                    "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts."
+                }
+            ): vol.Coerce(float),
             
             # Optional fields with defaults
-            vol.Optional(CONF_COST_SENSOR): selector.EntitySelector(
+            vol.Optional(
+                CONF_COST_SENSOR,
+                description={"suffix": "Sensor providing cost per kWh"}
+            ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["input_number", "number"])
             ),
-            vol.Optional(CONF_DEAD_ZONE, default=DEFAULT_DEAD_ZONE): vol.Coerce(float),
-            vol.Optional(CONF_DEBOUNCE, default=DEFAULT_DEBOUNCE): vol.Coerce(float),
+            vol.Optional(
+                CONF_DEAD_ZONE,
+                default=DEFAULT_DEAD_ZONE,
+                description={
+                    "suffix": " watts",
+                    "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts."
+                }
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_DEBOUNCE,
+                default=DEFAULT_DEBOUNCE,
+                description={
+                    "suffix": " seconds",
+                    "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
+                }
+            ): vol.Coerce(float),
             
             # Service reminder settings
-            vol.Optional(CONF_SERVICE_REMINDER, default=False): bool,
-            vol.Optional(CONF_SERVICE_REMINDER_COUNT, default=DEFAULT_SERVICE_REMINDER_COUNT): vol.Coerce(int),
-            vol.Optional(CONF_SERVICE_REMINDER_MESSAGE, default="Time for maintenance"): str,
+            vol.Optional(
+                CONF_SERVICE_REMINDER,
+                default=False,
+                description={"tooltip": "Enable service reminders after a set number of uses"}
+            ): bool,
+            vol.Optional(
+                CONF_SERVICE_REMINDER_COUNT,
+                default=DEFAULT_SERVICE_REMINDER_COUNT,
+                description={"tooltip": "Number of uses before showing a service reminder"}
+            ): vol.Coerce(int),
+            vol.Optional(
+                CONF_SERVICE_REMINDER_MESSAGE,
+                default="Time for maintenance",
+                description={"tooltip": "Message to show when service is needed"}
+            ): str,
         })
 
         # Show the configuration form
@@ -100,3 +183,14 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=self._errors,
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """
+        Handle reconfiguration of an existing entry.
+        
+        This method allows users to modify the settings of an existing
+        appliance configuration.
+        """
+        return await self.async_step_user(user_input)
