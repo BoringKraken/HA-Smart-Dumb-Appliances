@@ -194,7 +194,29 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         appliance configuration.
         """
         # Get the current configuration from the context
-        current_config = self.context.get("entry").data
+        entry = self.context.get("entry")
+        if not entry:
+            return self.async_abort(reason="no_entry")
+            
+        # Try to get current values from the energy usage sensor
+        current_config = entry.data
+        energy_sensor_id = f"sensor.{entry.data[CONF_DEVICE_NAME].lower().replace(' ', '_')}_energy_usage"
+        energy_sensor = self.hass.states.get(energy_sensor_id)
+        
+        if energy_sensor and energy_sensor.attributes:
+            # Use values from sensor attributes if available
+            current_config = {
+                **current_config,  # Keep any values not in attributes
+                CONF_START_WATTS: energy_sensor.attributes.get("start_watts", current_config.get(CONF_START_WATTS, DEFAULT_START_WATTS)),
+                CONF_STOP_WATTS: energy_sensor.attributes.get("stop_watts", current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)),
+                CONF_DEAD_ZONE: energy_sensor.attributes.get("dead_zone", current_config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)),
+                CONF_DEBOUNCE: energy_sensor.attributes.get("debounce", current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
+                CONF_POWER_SENSOR: energy_sensor.attributes.get("power_sensor", current_config.get(CONF_POWER_SENSOR)),
+                CONF_COST_SENSOR: energy_sensor.attributes.get("cost_sensor", current_config.get(CONF_COST_SENSOR)),
+                CONF_SERVICE_REMINDER: energy_sensor.attributes.get("service_reminder_enabled", current_config.get(CONF_SERVICE_REMINDER, False)),
+                CONF_SERVICE_REMINDER_COUNT: energy_sensor.attributes.get("service_reminder_count", current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)),
+                CONF_SERVICE_REMINDER_MESSAGE: energy_sensor.attributes.get("service_reminder_message", current_config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")),
+            }
 
         # If user input is provided, update the configuration
         if user_input is not None:
@@ -238,7 +260,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # Update the configuration entry
             return self.async_update_reload_and_abort(
-                self.context.get("entry"),
+                entry,
                 data=user_input,
                 reason="reconfigure_successful",
                 description_placeholders={
@@ -283,7 +305,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema.update({
                 vol.Optional(
                     CONF_START_WATTS,
-                    default=current_config.get(CONF_START_WATTS, DEFAULT_CONFIG[CONF_START_WATTS]),
+                    default=current_config.get(CONF_START_WATTS, DEFAULT_START_WATTS),
                     description={
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts. When power exceeds this value, the appliance is considered 'on'."
@@ -299,7 +321,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_STOP_WATTS,
-                    default=current_config.get(CONF_STOP_WATTS, DEFAULT_CONFIG[CONF_STOP_WATTS]),
+                    default=current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS),
                     description={
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts. When power drops below this value, the appliance is considered 'off'."
@@ -315,7 +337,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_DEAD_ZONE,
-                    default=current_config.get(CONF_DEAD_ZONE, DEFAULT_CONFIG[CONF_DEAD_ZONE]),
+                    default=current_config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE),
                     description={
                         "suffix": " watts",
                         "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts. Prevents false readings from standby power."
@@ -331,7 +353,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_DEBOUNCE,
-                    default=current_config.get(CONF_DEBOUNCE, DEFAULT_CONFIG[CONF_DEBOUNCE]),
+                    default=current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE),
                     description={
                         "suffix": " seconds",
                         "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling from power fluctuations. Higher values make the detection more stable but less responsive."
@@ -347,14 +369,14 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER,
-                    default=current_config.get(CONF_SERVICE_REMINDER, DEFAULT_CONFIG[CONF_SERVICE_REMINDER]),
+                    default=current_config.get(CONF_SERVICE_REMINDER, False),
                     description={
                         "tooltip": "Enable service reminders to track appliance usage and notify you when maintenance is needed. When enabled, you can set the number of uses before a reminder."
                     }
                 ): bool,
                 vol.Optional(
                     CONF_SERVICE_REMINDER_COUNT,
-                    default=current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_COUNT]),
+                    default=current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT),
                     description={
                         "tooltip": "Number of times the appliance can be used before showing a service reminder. Only applies if service reminders are enabled."
                     }
@@ -368,7 +390,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER_MESSAGE,
-                    default=current_config.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_CONFIG[CONF_SERVICE_REMINDER_MESSAGE]),
+                    default=current_config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance"),
                     description={
                         "tooltip": "Custom message to show when service is needed. If left empty, a default message will be used. The message will reset after the next use."
                     }

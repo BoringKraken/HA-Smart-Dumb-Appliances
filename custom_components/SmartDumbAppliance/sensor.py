@@ -25,6 +25,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_system import UnitOfEnergy
+from homeassistant.data_entry_flow import DataUpdateCoordinator
 
 from .const import (
     CONF_POWER_SENSOR,
@@ -457,18 +459,63 @@ class SmartDumbApplianceBase:
             return
 
 class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking energy usage of an appliance."""
+    """Sensor for tracking energy usage of a smart dumb appliance."""
 
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
-        """Initialize the energy sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Energy Usage"
-        self._attr_unique_id = f"{device_name}_energy_usage"
-        self._attr_native_value = 0.0
-        self._attr_native_unit_of_measurement = "kWh"
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        coordinator: DataUpdateCoordinator,
+    ) -> None:
+        """Initialize the energy usage sensor."""
+        super().__init__(hass, config_entry, coordinator)
+        self._attr_name = f"{self._device_name} Energy Usage"
+        self._attr_unique_id = f"{self._device_name.lower().replace(' ', '_')}_energy_usage"
         self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        self._attr_icon = get_appliance_icon(device_name)
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_should_poll = False
+        self._attr_available = True
+        self._attr_extra_state_attributes = {
+            "start_watts": self._config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS),
+            "stop_watts": self._config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS),
+            "dead_zone": self._config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE),
+            "debounce": self._config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE),
+            "power_sensor": self._config_entry.data.get(CONF_POWER_SENSOR),
+            "cost_sensor": self._config_entry.data.get(CONF_COST_SENSOR),
+            "service_reminder_enabled": self._config_entry.data.get(CONF_SERVICE_REMINDER, False),
+            "service_reminder_count": self._config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT),
+            "service_reminder_message": self._config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance"),
+        }
+        self._energy_usage = 0.0
+        self._last_update = None
+        self._last_power = 0.0
+        self._is_running = False
+        self._start_time = None
+        self._last_state_change = None
+        self._service_count = 0
+        self._needs_service = False
+        self._service_message = ""
+        self._last_service_reset = None
+        self._last_energy_reset = None
+        self._last_cost_update = None
+        self._cost_per_kwh = 0.0
+        self._total_cost = 0.0
+        self._last_cost = 0.0
+        self._cost_sensor = None
+        self._cost_sensor_entity_id = self._config_entry.data.get(CONF_COST_SENSOR)
+        self._power_sensor = None
+        self._power_sensor_entity_id = self._config_entry.data.get(CONF_POWER_SENSOR)
+        self._start_watts = self._config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+        self._stop_watts = self._config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
+        self._dead_zone = self._config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
+        self._debounce = self._config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        self._service_reminder = self._config_entry.data.get(CONF_SERVICE_REMINDER, False)
+        self._service_reminder_count = self._config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
+        self._service_reminder_message = self._config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "energy_usage"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
