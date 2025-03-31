@@ -13,6 +13,7 @@ import logging
 from typing import Any, Dict
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 
 # Set up logging for this module
@@ -24,7 +25,7 @@ _LOGGER.info("Smart Dumb Appliance integration is being loaded")
 # Define the platforms that this integration supports
 PLATFORMS = ["sensor", "binary_sensor"]
 
-async def async_setup(hass: HomeAssistant, config: Dict[str, Any]) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Smart Dumb Appliance integration."""
     _LOGGER.info("Setting up Smart Dumb Appliance integration")
     return True
@@ -32,9 +33,22 @@ async def async_setup(hass: HomeAssistant, config: Dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Dumb Appliance from a ConfigEntry."""
     _LOGGER.info("Setting up entry: %s", entry.entry_id)
+    
+    # Forward the setup to the sensor and binary_sensor platforms
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = entry.data
+    
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload Smart Dumb Appliance ConfigEntry."""
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
-    return True
+    
+    # Unload platforms
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    if unload_ok and entry.entry_id in hass.data[DOMAIN]:
+        del hass.data[DOMAIN][entry.entry_id]
+    
+    return unload_ok
