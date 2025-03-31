@@ -5,28 +5,34 @@ This module defines all the constant values used in the integration,
 including configuration keys, attribute names, and default values.
 """
 
-# Integration domain name
+# Integration domain name - this is how Home Assistant identifies our integration
 DOMAIN = "smart_dumb_appliance"
 
-# Default name for the integration
+# Default name for the integration - shown in the Home Assistant UI
 DEFAULT_NAME = "Smart Dumb Appliance"
 
-# Configuration keys
-CONF_DEVICE_NAME = "device_name"
-CONF_POWER_SENSOR = "power_sensor"
-CONF_COST_SENSOR = "cost_sensor"
-CONF_DEAD_ZONE = "dead_zone"
-CONF_DEBOUNCE = "debounce"
+# Configuration keys - these are the settings that users can configure in the UI
+CONF_DEVICE_NAME = "device_name"          # The friendly name for the appliance (e.g., "Washing Machine")
+CONF_POWER_SENSOR = "power_sensor"        # The sensor that measures power consumption in watts
+CONF_COST_SENSOR = "cost_sensor"          # The sensor that provides cost per kWh (e.g., energy rate)
+CONF_DEAD_ZONE = "dead_zone"              # Minimum power threshold to consider appliance as "on"
+CONF_DEBOUNCE = "debounce"                # Time to wait before confirming state changes
+CONF_SERVICE_REMINDER = "service_reminder"  # Whether to enable service reminders
+CONF_SERVICE_REMINDER_COUNT = "service_reminder_count"  # Number of uses before service reminder
+CONF_SERVICE_REMINDER_MESSAGE = "service_reminder_message"  # Custom message for service reminder
 
-# Attribute names for the appliance state
-ATTR_START_TIME = "start_time"      # Timestamp when the appliance started running
-ATTR_END_TIME = "end_time"          # Timestamp when the appliance finished running
+# Attribute names for the appliance state - these are the data points we track
+ATTR_START_TIME = "start_time"      # When the appliance started running
+ATTR_END_TIME = "end_time"          # When the appliance finished running
+ATTR_LAST_UPDATE = "last_update"    # When we last checked the appliance's status
+ATTR_POWER_USAGE = "power_usage"    # Current power consumption in watts
+ATTR_TOTAL_COST = "total_cost"      # Total cost of operation in your currency
+ATTR_USE_COUNT = "use_count"        # How many times the appliance has been used
+ATTR_LAST_SERVICE = "last_service"  # When the appliance was last serviced
+ATTR_NEXT_SERVICE = "next_service"  # When the appliance needs next service
+ATTR_SERVICE_MESSAGE = "service_message"  # Custom message for service reminder
 
-# Default values
-DEFAULT_DEAD_ZONE = 0.1
-DEFAULT_DEBOUNCE = 0.5
-
-# State attributes
-ATTR_LAST_UPDATE = "last_update"    # Last time the sensor was updated
-ATTR_POWER_USAGE = "power_usage"    # Current power usage in watts
-ATTR_TOTAL_COST = "total_cost"      # Total cost of operation in currency units
+# Default values - these are used if the user doesn't specify their own values
+DEFAULT_DEAD_ZONE = 0.1             # Default power threshold (0.1 watts)
+DEFAULT_DEBOUNCE = 0.5              # Default debounce time (0.5 seconds)
+DEFAULT_SERVICE_REMINDER_COUNT = 50  # Default number of uses before service reminder
