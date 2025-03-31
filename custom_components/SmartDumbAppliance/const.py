@@ -37,35 +37,45 @@ ATTR_SERVICE_MESSAGE = "service_message"  # Custom message for service reminder
 # Default values - these are used if the user doesn't specify their own values
 DEFAULT_START_WATTS = 5.0           # Default start threshold (5 watts)
 DEFAULT_STOP_WATTS = 2.0            # Default stop threshold (2 watts)
-DEFAULT_DEAD_ZONE = 0.1             # Default power threshold (0.1 watts) - safety check
-DEFAULT_DEBOUNCE = 0.5              # Default debounce time (0.5 seconds)
+DEFAULT_DEAD_ZONE = 0.5             # Default power threshold (0.5 watts) - safety check
+DEFAULT_DEBOUNCE = 5.0              # Default debounce time (5 seconds)
 DEFAULT_SERVICE_REMINDER_COUNT = 50  # Default number of uses before service reminder
+
+# List of available appliances for the dropdown
+AVAILABLE_APPLIANCES = [
+    "Custom",
+    "Clothes Washer",
+    "Clothes Dryer",
+    "Dishwasher",
+    "Toaster",
+    "Coffee Machine"
+]
 
 # Appliance-specific defaults
 APPLIANCE_DEFAULTS = {
     "default": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: False,
         CONF_SERVICE_REMINDER_COUNT: 50,
         CONF_SERVICE_REMINDER_MESSAGE: "Appliance needs maintenance",
     },
-    "washer": {
+    "clothes washer": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: True,
         CONF_SERVICE_REMINDER_COUNT: 50,
         CONF_SERVICE_REMINDER_MESSAGE: "Clean washing machine filter and check hoses",
     },
-    "dryer": {
+    "clothes dryer": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: True,
         CONF_SERVICE_REMINDER_COUNT: 2,
         CONF_SERVICE_REMINDER_MESSAGE: "Clean lint trap and check vent hose",
@@ -73,8 +83,8 @@ APPLIANCE_DEFAULTS = {
     "dishwasher": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: True,
         CONF_SERVICE_REMINDER_COUNT: 30,
         CONF_SERVICE_REMINDER_MESSAGE: "Clean dishwasher filter and check spray arms",
@@ -82,8 +92,8 @@ APPLIANCE_DEFAULTS = {
     "toaster": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: True,
         CONF_SERVICE_REMINDER_COUNT: 100,
         CONF_SERVICE_REMINDER_MESSAGE: "Clean toaster crumb tray and check heating elements",
@@ -91,8 +101,8 @@ APPLIANCE_DEFAULTS = {
     "coffee machine": {
         CONF_START_WATTS: 5.0,
         CONF_STOP_WATTS: 2.0,
-        CONF_DEAD_ZONE: 0.1,
-        CONF_DEBOUNCE: 0.5,
+        CONF_DEAD_ZONE: 0.5,
+        CONF_DEBOUNCE: 5.0,
         CONF_SERVICE_REMINDER: True,
         CONF_SERVICE_REMINDER_COUNT: 30,
         CONF_SERVICE_REMINDER_MESSAGE: "Clean coffee machine and descale if needed",
