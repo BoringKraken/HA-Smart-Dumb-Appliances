@@ -193,8 +193,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         This method allows users to modify the settings of an existing
         appliance configuration.
         """
-        # Get the current configuration
-        current_config = self.config_entry.data
+        # Get the current configuration from the context
+        current_config = self.context.get("entry").data
 
         # If user input is provided, update the configuration
         if user_input is not None:
@@ -238,7 +238,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # Update the configuration entry
             return self.async_update_reload_and_abort(
-                self.config_entry,
+                self.context.get("entry"),
                 data=user_input,
                 reason="reconfigure_successful",
                 description_placeholders={
