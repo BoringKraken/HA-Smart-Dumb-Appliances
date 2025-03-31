@@ -25,7 +25,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
-from homeassistant.util.unit_system import UnitOfEnergy
+from homeassistant.const import UnitOfEnergy
 from homeassistant.data_entry_flow import DataUpdateCoordinator
 
 from .const import (
