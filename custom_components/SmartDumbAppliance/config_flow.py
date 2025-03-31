@@ -6,6 +6,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.const import CONF_NAME
 
 from .const import (
     DOMAIN,
@@ -13,7 +14,9 @@ from .const import (
     CONF_COST_SENSOR,
     CONF_DEAD_ZONE,
     CONF_DEBOUNCE,
-    CONF_DEVICE_NAME
+    CONF_DEVICE_NAME,
+    DEFAULT_DEAD_ZONE,
+    DEFAULT_DEBOUNCE
 )
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -21,12 +24,12 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self):
+        """Initialize the config flow."""
         self._errors = {}
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step where user configures the device."""
         if user_input is not None:
-            # Normally you'd add validation checks here if desired.
             return self.async_create_entry(
                 title=user_input[CONF_DEVICE_NAME],
                 data=user_input
@@ -40,8 +43,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_COST_SENSOR): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["number"])
             ),
-            vol.Optional(CONF_DEAD_ZONE, default=5): vol.Coerce(float),
-            vol.Optional(CONF_DEBOUNCE, default=30): vol.Coerce(float),
+            vol.Optional(CONF_DEAD_ZONE, default=DEFAULT_DEAD_ZONE): vol.Coerce(float),
+            vol.Optional(CONF_DEBOUNCE, default=DEFAULT_DEBOUNCE): vol.Coerce(float),
         })
 
         return self.async_show_form(
@@ -61,6 +64,7 @@ class SmartDumbApplianceOptionsFlowHandler(config_entries.OptionsFlow):
     """Handles the 'Options' flow to edit an existing device's settings."""
 
     def __init__(self, config_entry):
+        """Initialize the options flow."""
         self.config_entry = config_entry
         self._errors = {}
 
@@ -90,11 +94,11 @@ class SmartDumbApplianceOptionsFlowHandler(config_entries.OptionsFlow):
             ),
             vol.Optional(
                 CONF_DEAD_ZONE,
-                default=current_data.get(CONF_DEAD_ZONE, 5)
+                default=current_data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
             ): vol.Coerce(float),
             vol.Optional(
                 CONF_DEBOUNCE,
-                default=current_data.get(CONF_DEBOUNCE, 30)
+                default=current_data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
             ): vol.Coerce(float),
         })
 

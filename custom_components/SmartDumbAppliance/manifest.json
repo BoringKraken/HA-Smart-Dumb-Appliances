@@ -1,6 +1,7 @@
 {
   "domain": "smart_dumb_appliance",
   "name": "Smart Dumb Appliance",
+  "version": "1.0.25g",
   "documentation": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances",
   "dependencies": [],
   "codeowners": ["@boringkraken"],
@@ -9,6 +10,5 @@
   "config_flow": true,
   "homeassistant": "2025.3.4",
   "issue_tracker": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances/issues",
-  "version": "1.0.25g",
   "integration_type": "device"
 }
