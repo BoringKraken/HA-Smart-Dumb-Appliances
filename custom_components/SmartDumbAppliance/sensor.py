@@ -26,7 +26,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
 from homeassistant.const import UnitOfEnergy
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_POWER_SENSOR,
@@ -52,6 +51,7 @@ from .const import (
     ATTR_SERVICE_MESSAGE,
     CONF_DEVICE_NAME,
 )
+from .coordinator import SmartDumbApplianceCoordinator
 
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)
@@ -291,21 +291,8 @@ async def async_setup_entry(
     config = config_entry.data
     device_name = config[CONF_DEVICE_NAME]
 
-    # Create a coordinator for all sensors
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=f"{device_name}_coordinator",
-        update_method=async_update_data,
-        update_interval=timedelta(seconds=1),
-    )
-    
-    # Add config entry and hass to coordinator for power sensor access
-    coordinator.config_entry = config_entry
-    coordinator.hass = hass
-    
-    # Store coordinator in the update method for access
-    async_update_data.coordinator = coordinator
+    # Create the coordinator
+    coordinator = SmartDumbApplianceCoordinator(hass, config_entry)
 
     # Create and add the sensors
     entities = [
@@ -320,49 +307,10 @@ async def async_setup_entry(
     # Start the coordinator
     await coordinator.async_config_entry_first_refresh()
 
-async def async_update_data() -> dict[str, Any]:
-    """
-    Fetch data from the power sensor.
-    
-    This is the update method for the coordinator. It will be called
-    periodically to update the sensor data.
-    
-    Returns:
-        dict: The updated sensor data containing:
-            - last_update: Current timestamp
-            - power_state: Current power reading
-            - is_running: Whether the appliance is running
-    """
-    # Get the current timestamp
-    last_update = dt_util.utcnow()
-    
-    # Get the power sensor state
-    power_state = None
-    is_running = False
-    
-    # Get the power sensor from the coordinator's config
-    if hasattr(async_update_data, 'coordinator'):
-        power_sensor = async_update_data.coordinator.config_entry.data.get(CONF_POWER_SENSOR)
-        if power_sensor:
-            power_state = async_update_data.coordinator.hass.states.get(power_sensor)
-            if power_state is not None:
-                try:
-                    power_state = float(power_state.state)
-                    is_running = power_state > async_update_data.coordinator.config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-                except (ValueError, TypeError):
-                    _LOGGER.warning("Invalid power sensor state: %s", power_state.state)
-    
-    # Return the data dictionary
-    return {
-        "last_update": last_update,
-        "power_state": power_state,
-        "is_running": is_running,
-    }
-
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
     
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: DataUpdateCoordinator) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: SmartDumbApplianceCoordinator) -> None:
         """Initialize the base sensor."""
         self.hass = hass
         self.config_entry = config_entry
@@ -397,22 +345,13 @@ class SmartDumbApplianceBase:
         self._cycle_energy = 0.0
         self._cycle_cost = 0.0
 
-        # Get initial power reading
-        try:
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is not None:
-                self._last_power = float(power_state.state)
-        except (ValueError, TypeError):
-            _LOGGER.warning("Could not get initial power reading from %s", self._power_sensor)
-
         # Log initialization with sensor type
         sensor_type = self.__class__.__name__.replace('SmartDumbAppliance', '').replace('Sensor', '')
         _LOGGER.info(
-            "Initializing %s (%s) with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
+            "Initializing %s (%s) with power sensor %s (start: %.1fW, stop: %.1fW)",
             self._attr_name,
             sensor_type,
             self._power_sensor,
-            self._last_power,
             self._start_watts,
             self._stop_watts
         )
@@ -444,18 +383,22 @@ class SmartDumbApplianceBase:
                 return
 
             # Update the sensor state from coordinator data
-            self._last_update = data.get("last_update")
-            self._last_power = data.get("power_state", 0.0)
-            self._was_on = data.get("is_running", False)
+            self._last_update = data.last_update
+            self._last_power = data.power_state
+            self._was_on = data.is_running
+            self._start_time = data.start_time
+            self._end_time = data.end_time
+            self._use_count = data.use_count
+            self._cycle_energy = data.cycle_energy
+            self._cycle_cost = data.cycle_cost
 
             # Log the update
             _LOGGER.debug(
-                "Power reading for %s: %.1fW (current: %.1fW, start: %.1fW, stop: %.1fW)",
+                "Updated %s: %.1fW (running: %s, last_update: %s)",
                 self._attr_name,
                 self._last_power,
-                self._last_power,
-                self._start_watts,
-                self._stop_watts
+                self._was_on,
+                self._last_update
             )
 
         except Exception as err:
@@ -496,7 +439,7 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: DataUpdateCoordinator,
+        coordinator: SmartDumbApplianceCoordinator,
     ) -> None:
         """Initialize the cumulative energy sensor."""
         super().__init__(hass, config_entry, coordinator)
@@ -544,7 +487,7 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: DataUpdateCoordinator,
+        coordinator: SmartDumbApplianceCoordinator,
     ) -> None:
         """
         Initialize the current power sensor.
@@ -667,7 +610,7 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: DataUpdateCoordinator,
+        coordinator: SmartDumbApplianceCoordinator,
     ) -> None:
         """
         Initialize the binary sensor.
@@ -705,40 +648,54 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
         
         This method is called by the coordinator to update the sensor's state
         and attributes. It:
-        1. Gets the current power reading from the base class
+        1. Gets the latest data from the coordinator
         2. Updates the binary state (on/off)
         3. Updates all relevant attributes
         4. Logs state changes for debugging
         5. Updates the icon and color based on state
         """
-        # First update the base class to get the latest power readings
-        await super().async_update()
-        
-        # Update the binary state
-        self._attr_is_on = self._was_on
-        
-        # Update all attributes with the latest values
-        self._attr_extra_state_attributes.update({
-            # Current state
-            "power_usage": self._last_power,
+        try:
+            # Wait for the coordinator to update
+            await self.coordinator.async_request_refresh()
             
-            # Timing information
-            "last_update": self._last_update,
-            "start_time": self._start_time,
-            "end_time": self._end_time,
-        })
-        
-        # Log the update for debugging
-        _LOGGER.debug(
-            "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
-            self._attr_name,
-            "on" if self._was_on else "off",
-            self._last_power,
-            self._last_update
-        )
+            # Get the latest data from the coordinator
+            data = self.coordinator.data
+            if data is None:
+                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
+                return
 
-        # Update icon and color based on power state
-        self._update_icon_and_color("on" if self._was_on else "off")
+            # Update the binary state
+            self._attr_is_on = data.is_running
+            
+            # Update all attributes with the latest values
+            self._attr_extra_state_attributes.update({
+                # Current state
+                "power_usage": data.power_state,
+                
+                # Timing information
+                "last_update": data.last_update,
+                "start_time": data.start_time,
+                "end_time": data.end_time,
+            })
+            
+            # Log the update for debugging
+            _LOGGER.debug(
+                "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
+                self._attr_name,
+                "on" if data.is_running else "off",
+                data.power_state,
+                data.last_update
+            )
+
+            # Update icon and color based on power state
+            self._update_icon_and_color("on" if data.is_running else "off")
+
+        except Exception as err:
+            _LOGGER.error(
+                "Error updating binary sensor %s: %s",
+                self._attr_name,
+                err
+            )
 
 class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
     """
@@ -758,7 +715,7 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        coordinator: DataUpdateCoordinator,
+        coordinator: SmartDumbApplianceCoordinator,
     ) -> None:
         """
         Initialize the service sensor.

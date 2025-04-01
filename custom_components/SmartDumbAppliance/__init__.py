@@ -9,12 +9,32 @@ The integration provides functionality to monitor "dumb" appliances by tracking 
 energy usage patterns and providing status information through Home Assistant.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
-from .const import DOMAIN
+from homeassistant.const import Platform
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+from .const import (
+    DOMAIN,
+    CONF_POWER_SENSOR,
+    CONF_COST_SENSOR,
+    CONF_START_WATTS,
+    CONF_STOP_WATTS,
+    CONF_DEBOUNCE,
+    CONF_SERVICE_REMINDER,
+    CONF_SERVICE_REMINDER_COUNT,
+    CONF_SERVICE_REMINDER_MESSAGE,
+    DEFAULT_START_WATTS,
+    DEFAULT_STOP_WATTS,
+    DEFAULT_DEBOUNCE,
+    DEFAULT_SERVICE_REMINDER_COUNT,
+)
+from .coordinator import SmartDumbApplianceCoordinator
 
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.info("Smart Dumb Appliance integration is being loaded")
 
 # Define the platforms that this integration supports
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Smart Dumb Appliance integration."""
@@ -34,10 +54,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Dumb Appliance from a ConfigEntry."""
     _LOGGER.info("Setting up entry: %s", entry.entry_id)
     
-    # Forward the setup to the sensor and binary_sensor platforms
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    # Create the coordinator
+    coordinator = SmartDumbApplianceCoordinator(hass, entry)
     
+    # Store the coordinator in hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = coordinator
+    
+    # Set up the platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
