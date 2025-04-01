@@ -22,8 +22,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_POWER_SENSOR,
-    CONF_DEAD_ZONE,
-    DEFAULT_DEAD_ZONE,
+    CONF_START_WATTS,
+    CONF_STOP_WATTS,
+    CONF_DEBOUNCE,
+    DEFAULT_START_WATTS,
+    DEFAULT_STOP_WATTS,
+    DEFAULT_DEBOUNCE,
+    CONF_DEVICE_NAME,
     ATTR_POWER_USAGE,
     ATTR_LAST_UPDATE,
     ATTR_START_TIME,
@@ -49,7 +54,7 @@ async def async_setup_entry(
     )
     
     # Create and add the binary sensor
-    async_add_entities([SmartDumbApplianceBinarySensor(entry, coordinator)])
+    async_add_entities([SmartDumbApplianceBinarySensor(hass, entry, coordinator)])
     
     # Start the coordinator
     await coordinator.async_config_entry_first_refresh()
@@ -67,32 +72,33 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
     - Usage count
     """
 
-    def __init__(self, entry: ConfigEntry, coordinator: DataUpdateCoordinator) -> None:
-        """
-        Initialize the binary sensor.
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: DataUpdateCoordinator) -> None:
+        """Initialize the binary sensor."""
+        self.hass = hass
+        self.config_entry = config_entry
+        self.coordinator = coordinator
+        self._attr_name = config_entry.data.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
+        self._attr_unique_id = f"{config_entry.entry_id}"
         
-        Args:
-            entry: The configuration entry containing all settings
-            coordinator: The update coordinator for managing updates
-        """
-        self._entry = entry
-        self._coordinator = coordinator
-        self._attr_name = f"{entry.data.get('device_name', 'Smart Dumb Appliance')} Status"
-        self._attr_unique_id = f"{entry.entry_id}_binary_sensor"
-        self._attr_is_on = False
-        self._attr_should_poll = False  # We rely on the coordinator for updates
+        # Load configuration
+        self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
+        self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+        self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
+        self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
         
-        # Configuration
-        self._power_sensor = entry.data[CONF_POWER_SENSOR]
-        self._dead_zone = entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
-        
-        # State tracking
+        # Initialize state tracking
         self._last_update = None
         self._last_power = 0.0
-        self._start_time = None
-        self._end_time = None
-        self._use_count = 0
         self._was_on = False
+
+        # Log initialization
+        _LOGGER.info(
+            "Initializing %s with power sensor %s (start: %sW, stop: %sW)",
+            self._attr_name,
+            self._power_sensor,
+            self._start_watts,
+            self._stop_watts
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -109,7 +115,9 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
             ATTR_END_TIME: self._end_time,
             ATTR_USE_COUNT: self._use_count,
             "power_sensor": self._power_sensor,
-            "dead_zone": self._dead_zone,
+            "start_watts": self._start_watts,
+            "stop_watts": self._stop_watts,
+            "debounce": self._debounce,
         }
 
     async def async_update(self) -> None:
@@ -136,17 +144,18 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
             self._last_update = datetime.now()
 
             # Determine if the appliance is running
-            is_on = current_power > self._dead_zone
+            is_on = self._start_watts <= current_power <= self._stop_watts
             
             # Track state changes
             if is_on and not self._was_on:
                 self._start_time = self._last_update
                 self._end_time = None
                 _LOGGER.debug(
-                    "%s turned on (Power: %.1fW, Dead zone: %.1fW)",
+                    "%s turned on (Power: %.1fW, Start: %sW, Stop: %sW)",
                     self._attr_name,
                     current_power,
-                    self._dead_zone
+                    self._start_watts,
+                    self._stop_watts
                 )
             elif not is_on and self._was_on:
                 self._end_time = self._last_update
