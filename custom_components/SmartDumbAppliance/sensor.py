@@ -298,7 +298,7 @@ async def async_setup_entry(
         hass,
         _LOGGER,
         name=f"{device_name}_coordinator",
-        update_method=lambda: True,  # Return True to indicate successful update
+        update_method=async_update_data,
         update_interval=timedelta(seconds=1),
     )
 
@@ -314,6 +314,18 @@ async def async_setup_entry(
 
     # Start the coordinator
     await coordinator.async_config_entry_first_refresh()
+
+async def async_update_data() -> dict[str, Any]:
+    """
+    Fetch data from the power sensor.
+    
+    This is the update method for the coordinator. It will be called
+    periodically to update the sensor data.
+    
+    Returns:
+        dict: The updated sensor data
+    """
+    return {"last_update": dt_util.utcnow()}
 
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
@@ -370,7 +382,19 @@ class SmartDumbApplianceBase:
         return False
 
     async def async_update(self) -> None:
-        """Update the sensor state."""
+        """
+        Update the sensor state.
+        
+        This method is called by the coordinator to update the sensor's state.
+        It ensures that:
+        1. The coordinator's data is up to date
+        2. The power sensor state is read and processed
+        3. All relevant attributes are updated
+        4. State changes are logged for debugging
+        """
+        # Wait for the coordinator to update
+        await self.coordinator.async_request_refresh()
+        
         try:
             # Get current power reading
             power_state = self.hass.states.get(self._power_sensor)
@@ -507,7 +531,15 @@ class SmartDumbApplianceBase:
             self._attr_entity_picture = None
 
 class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking cumulative energy usage of a smart dumb appliance."""
+    """
+    Sensor for tracking cumulative energy usage of a smart dumb appliance.
+    
+    This sensor provides:
+    - Total energy consumption in kWh
+    - Total cost tracking
+    - Last update timestamp
+    - Start/End times of operation
+    """
 
     def __init__(
         self,
@@ -529,12 +561,6 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             "last_update": None,
             "start_time": None,
             "end_time": None,
-            "use_count": 0,
-            "last_service": None,
-            "next_service": None,
-            "service_reminder_enabled": False,
-            "service_reminder_count": 0,
-            "service_reminder_message": None,
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "cumulative_energy"
@@ -548,12 +574,6 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             "last_update": self._last_update,
             "start_time": self._start_time,
             "end_time": self._end_time,
-            "use_count": self._use_count,
-            "last_service": self._last_service,
-            "next_service": self._next_service,
-            "service_reminder_enabled": self._service_reminder,
-            "service_reminder_count": self._service_reminder_count,
-            "service_reminder_message": self._service_reminder_message if self._service_reminder else None,
         })
 
 class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity):
@@ -563,11 +583,10 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
     This sensor provides real-time power consumption data and maintains
     various attributes for monitoring the appliance's operation:
     - Current power reading in watts
-    - Power thresholds (start, stop, dead zone)
-    - Cycle energy and cost tracking
+    - Power thresholds (start, stop)
     - Last update timestamp
     - Running state
-    - Service status and maintenance tracking
+    - Power sensor configuration
     """
 
     def __init__(
@@ -598,28 +617,16 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
             # Power thresholds and configuration
             "start_watts": self._start_watts,
             "stop_watts": self._stop_watts,
-            "dead_zone": self._dead_zone,
             "debounce": self._debounce,
             "power_sensor": self._power_sensor,
             "cost_sensor": self._cost_sensor,
             
             # Current state
             "is_running": False,
-            "cycle_energy": 0.0,
-            "cycle_cost": 0.0,
             "power_usage": 0.0,
             
             # Timing information
             "last_update": None,
-            "start_time": None,
-            "end_time": None,
-            
-            # Usage tracking
-            "use_count": 0,
-            
-            # Service information
-            "last_service": None,
-            "next_service": None,
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "current_power"
@@ -648,21 +655,10 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         self._attr_extra_state_attributes.update({
             # Current state
             "is_running": self._was_on,
-            "cycle_energy": self._cycle_energy,
-            "cycle_cost": self._cycle_cost,
             "power_usage": self._last_power,
             
             # Timing information
             "last_update": self._last_update,
-            "start_time": self._start_time,
-            "end_time": self._end_time,
-            
-            # Usage tracking
-            "use_count": self._use_count,
-            
-            # Service information
-            "last_service": self._last_service,
-            "next_service": self._next_service,
         })
         
         # Log the update for debugging
@@ -687,7 +683,6 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
     - Current power usage
     - Last update timestamp
     - Start/End times of operation
-    - Usage count
     - Power sensor configuration
     """
 
@@ -723,12 +718,8 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
             "start_time": None,
             "end_time": None,
             
-            # Usage tracking
-            "use_count": 0,
-            
             # Configuration
             "power_sensor": self._power_sensor,
-            "dead_zone": self._dead_zone,
         }
 
     async def async_update(self) -> None:
@@ -758,9 +749,6 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
             "last_update": self._last_update,
             "start_time": self._start_time,
             "end_time": self._end_time,
-            
-            # Usage tracking
-            "use_count": self._use_count,
         })
         
         # Log the update for debugging
@@ -785,6 +773,8 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
     - Service reminder scheduling
     - Last and next service dates
     - Service reminder configuration
+    - Current running state
+    - Current cycle energy and cost
     """
 
     def __init__(
@@ -825,6 +815,11 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             "service_reminder_enabled": False,
             "service_reminder_count": 0,
             "service_reminder_message": None,
+            
+            # Current state
+            "is_running": False,
+            "cycle_energy": 0.0,
+            "cycle_cost": 0.0,
         }
 
     async def async_update(self) -> None:
@@ -858,6 +853,11 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             "service_reminder_enabled": self._service_reminder,
             "service_reminder_count": self._service_reminder_count,
             "service_reminder_message": self._service_reminder_message if self._service_reminder else None,
+            
+            # Current state
+            "is_running": self._was_on,
+            "cycle_energy": self._cycle_energy,
+            "cycle_cost": self._cycle_cost,
         })
         
         # Determine the current service status
@@ -873,10 +873,13 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             
         # Log the update for debugging
         _LOGGER.debug(
-            "Updated service sensor for %s: %s (Use count: %d/%d, last_update: %s)",
+            "Updated service sensor for %s: %s (Use count: %d/%d, last_update: %s, running: %s, cycle energy: %.3f kWh, cycle cost: %.2f)",
             self._attr_name,
             self._attr_native_value,
             self._use_count,
             self._service_reminder_count,
-            self._last_update
+            self._last_update,
+            self._was_on,
+            self._cycle_energy,
+            self._cycle_cost
         ) 
