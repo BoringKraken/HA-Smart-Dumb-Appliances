@@ -330,6 +330,8 @@ class SmartDumbApplianceBase(SensorEntity):
         self._attr_icon = get_appliance_icon(self._attr_name)
         
         # Initialize state tracking
+        self._attr_native_value = None
+        self._attr_extra_state_attributes = {}
         self._last_update = None
         self._last_power = 0.0
         self._total_energy = 0.0
@@ -367,107 +369,44 @@ class SmartDumbApplianceBase(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
+        
+        # Add listener and store remove callback
         self.async_on_remove(
             self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
         
+        # Do initial update
+        await self._handle_coordinator_update()
+        
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("%s: Handling coordinator update with data: %s", self._attr_name, self.coordinator.data)
-        self.async_write_ha_state()
-
-    async def async_update(self) -> None:
-        """Update the sensor state."""
-        await self.coordinator.async_request_refresh()
-
-        if not self.coordinator.last_update_success:
-            _LOGGER.debug(
-                "Sensor %s update skipped - coordinator update not successful",
-                self._attr_name
-            )
+        if self.coordinator.data is None:
+            _LOGGER.debug("%s: No data available from coordinator", self._attr_name)
             return
-
-        data = self.coordinator.data
-        if data is None:
-            _LOGGER.debug(
-                "Sensor %s update skipped - no data available from coordinator",
-                self._attr_name
-            )
-            return
-
-        # Log the incoming data
-        _LOGGER.debug(
-            "Sensor %s received update - Power: %.1fW, Running: %s, "
-            "Start time: %s, End time: %s, Use count: %d, Cycle energy: %.3f kWh",
-            self._attr_name,
-            data.power_state,
-            data.is_running,
-            data.start_time,
-            data.end_time,
-            data.use_count,
-            data.cycle_energy
-        )
-
-        # Update the state based on sensor type
-        old_state = self._attr_native_value
-        if isinstance(self, SmartDumbApplianceCurrentPowerSensor):
-            self._attr_native_value = data.power_state
-            _LOGGER.debug(
-                "Current Power sensor %s updated - Old: %.1fW, New: %.1fW",
-                self._attr_name,
-                old_state,
-                self._attr_native_value
-            )
-        elif isinstance(self, SmartDumbApplianceCumulativeEnergySensor):
-            if data.is_running and data.start_time:
-                # Calculate additional energy since last update
-                duration = (data.last_update - data.start_time).total_seconds() / 3600  # hours
-                additional_energy = (data.power_state * duration) / 1000  # kWh
-                self._attr_native_value += additional_energy
-                _LOGGER.debug(
-                    "Cumulative Energy sensor %s updated - Duration: %.2f hours, "
-                    "Power: %.1fW, Additional: %.3f kWh, Total: %.3f kWh",
-                    self._attr_name,
-                    duration,
-                    data.power_state,
-                    additional_energy,
-                    self._attr_native_value
-                )
-        elif isinstance(self, SmartDumbApplianceServiceSensor):
-            # Update service status based on use count
-            old_status = self._attr_native_value
-            if data.use_count >= self._service_reminder_count:
-                self._attr_native_value = "needs_service"
-            else:
-                self._attr_native_value = "ok"
             
-            if old_status != self._attr_native_value:
-                _LOGGER.debug(
-                    "Service sensor %s status changed - Old: %s, New: %s, Use count: %d/%d",
-                    self._attr_name,
-                    old_status,
-                    self._attr_native_value,
-                    data.use_count,
-                    self._service_reminder_count
-                )
-
-        # Update attributes
-        self._attr_extra_state_attributes.update({
-            ATTR_POWER_USAGE: data.power_state,
-            ATTR_LAST_UPDATE: data.last_update,
-            ATTR_START_TIME: data.start_time,
-            ATTR_END_TIME: data.end_time,
-            ATTR_USE_COUNT: data.use_count,
-        })
-
-        # Log final state
-        _LOGGER.debug(
-            "Sensor %s update complete - State: %s, Last update: %s",
-            self._attr_name,
-            self._attr_native_value,
-            data.last_update
-        )
+        _LOGGER.debug("%s: Handling coordinator update with data: %s", self._attr_name, self.coordinator.data)
+        
+        # Update common attributes from coordinator data
+        data = self.coordinator.data
+        self._last_update = data.last_update
+        self._last_power = data.power_state
+        self._was_on = data.is_running
+        self._start_time = data.start_time
+        self._end_time = data.end_time
+        self._use_count = data.use_count
+        self._cycle_energy = data.cycle_energy
+        self._cycle_cost = data.cycle_cost
+        
+        # Update entity-specific state
+        self._update_entity_state(data)
+        
+        # Write state to HA
+        self.async_write_ha_state()
+        
+    def _update_entity_state(self, data: Any) -> None:
+        """Update entity-specific state from coordinator data. To be implemented by subclasses."""
+        pass
 
     def _update_icon_and_color(self, status: str, power_state: bool = None) -> None:
         """
@@ -531,18 +470,8 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             "end_time": self._end_time,
         })
 
-class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity):
-    """
-    Sensor for tracking current power usage and thresholds.
-    
-    This sensor provides real-time power consumption data and maintains
-    various attributes for monitoring the appliance's operation:
-    - Current power reading in watts
-    - Power thresholds (start, stop)
-    - Last update timestamp
-    - Running state
-    - Power sensor configuration
-    """
+class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
+    """Sensor for tracking current power usage and thresholds."""
 
     def __init__(
         self,
@@ -550,97 +479,39 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         config_entry: ConfigEntry,
         coordinator: SmartDumbApplianceCoordinator,
     ) -> None:
-        """
-        Initialize the current power sensor.
-        
-        Args:
-            hass: The Home Assistant instance
-            config_entry: The configuration entry containing all settings
-            coordinator: The update coordinator for managing updates
-        """
+        """Initialize the current power sensor."""
         super().__init__(hass, config_entry, coordinator)
         self._attr_name = f"{self._attr_name} Current Power"
-        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_current_power"
+        self._attr_unique_id = f"{config_entry.entry_id}_current_power"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = "W"
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:lightning-bolt"
-        self._attr_available = True
-        self._attr_native_value = 0.0  # Initialize with 0
+        self._attr_native_value = 0.0
         
-        # Define all possible attributes that this sensor can have
+        # Define all possible attributes
         self._attr_extra_state_attributes = {
-            # Power thresholds and configuration
             "start_watts": self._start_watts,
             "stop_watts": self._stop_watts,
             "debounce": self._debounce,
             "power_sensor": self._power_sensor,
             "cost_sensor": self._cost_sensor,
-            
-            # Current state
             "is_running": False,
             "power_usage": 0.0,
-            
-            # Timing information
             "last_update": None,
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "current_power"
-        _LOGGER.debug("Initialized current power sensor for %s", self._attr_name)
 
-    async def async_update(self) -> None:
-        """
-        Update the current power sensor state.
-        
-        This method is called by the coordinator to update the sensor's state
-        and attributes. It ensures that:
-        1. The coordinator's data is up to date
-        2. The sensor state and attributes are updated
-        3. The icon and color are updated based on the power state
-        4. Debug logging is performed for troubleshooting
-        """
-        try:
-            # Wait for the coordinator to update
-            await self.coordinator.async_request_refresh()
-            
-            # Get the latest data from the coordinator
-            data = self.coordinator.data
-            if data is None:
-                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
-                return
-
-            # Update the main power value
-            self._attr_native_value = data.power_state
-            self._attr_available = True
-
-            # Update all attributes with the latest values
-            self._attr_extra_state_attributes.update({
-                # Current state
-                "is_running": data.is_running,
-                "power_usage": data.power_state,
-                
-                # Timing information
-                "last_update": data.last_update,
-            })
-            
-            # Log the update for debugging
-            _LOGGER.debug(
-                "Updated current power sensor for %s: %.1fW (running: %s, last_update: %s)",
-                self._attr_name,
-                data.power_state,
-                data.is_running,
-                data.last_update
-            )
-
-            # Update the icon and color based on power state
-            self._update_icon_and_color("on" if data.is_running else "off")
-
-        except Exception as err:
-            _LOGGER.error(
-                "Error updating current power sensor %s: %s",
-                self._attr_name,
-                err
-            )
+    def _update_entity_state(self, data: Any) -> None:
+        """Update entity state from coordinator data."""
+        self._attr_native_value = data.power_state
+        self._attr_extra_state_attributes.update({
+            "is_running": data.is_running,
+            "power_usage": data.power_state,
+            "last_update": data.last_update,
+        })
+        self._update_icon_and_color("on" if data.is_running else "off")
 
 class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
     """

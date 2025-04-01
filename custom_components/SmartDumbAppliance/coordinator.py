@@ -146,6 +146,10 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
+        # Start the periodic updates
+        await self.async_config_entry_first_refresh()
+        
+        # Set up power sensor state tracking
         self._unsubscribe = self.hass.helpers.event.async_track_state_change(
             self._power_sensor,
             self._async_power_sensor_changed
@@ -171,9 +175,13 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             new_state.state
         )
         
-        # Update data synchronously first
+        # Schedule an update
+        self.hass.async_create_task(self.async_refresh())
+
+    async def _async_handle_power_change(self) -> None:
+        """Handle power sensor changes asynchronously."""
         try:
-            data = self._async_update_data()
+            data = await self._async_update_data()
             self.data = data
             _LOGGER.debug("Updated coordinator data: %s", data)
             self.async_set_updated_data(data)
