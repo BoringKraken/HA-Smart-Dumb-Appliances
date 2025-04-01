@@ -551,7 +551,17 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         })
 
 class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking current power usage and thresholds."""
+    """
+    Sensor for tracking current power usage and thresholds.
+    
+    This sensor provides real-time power consumption data and maintains
+    various attributes for monitoring the appliance's operation:
+    - Current power reading in watts
+    - Power thresholds (start, stop, dead zone)
+    - Cycle energy and cost tracking
+    - Last update timestamp
+    - Running state
+    """
 
     def __init__(
         self,
@@ -567,8 +577,10 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         self._attr_native_unit_of_measurement = "W"
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:lightning-bolt"
-        self._attr_should_poll = False
+        self._attr_should_poll = False  # We rely on the coordinator for updates
         self._attr_available = True
+        
+        # Define all possible attributes that this sensor can have
         self._attr_extra_state_attributes = {
             "start_watts": self._start_watts,
             "stop_watts": self._stop_watts,
@@ -581,28 +593,58 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
             "cycle_cost": 0.0,
             "power_usage": 0.0,
             "last_update": None,
+            "start_time": None,
+            "end_time": None,
+            "use_count": 0,
+            "last_service": None,
+            "next_service": None,
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "current_power"
         _LOGGER.debug("Initialized current power sensor for %s", self._attr_name)
 
     async def async_update(self) -> None:
-        """Update the current power sensor state."""
-        await super().async_update()  # Use base class update logic
-        self._attr_native_value = self._last_power  # Use the power reading from base class
+        """
+        Update the current power sensor state.
+        
+        This method is called by the coordinator to update the sensor's state
+        and attributes. It ensures that:
+        1. The base class update logic is executed
+        2. The current power value is updated
+        3. All relevant attributes are refreshed
+        4. The icon and color are updated based on the power state
+        """
+        # First update the base class to get the latest power readings
+        await super().async_update()
+        
+        # Update the main power value
+        self._attr_native_value = self._last_power
         self._attr_available = True
 
-        # Update attributes
+        # Update all attributes with the latest values
         self._attr_extra_state_attributes.update({
             "is_running": self._was_on,
             "cycle_energy": self._cycle_energy,
             "cycle_cost": self._cycle_cost,
             "power_usage": self._last_power,
             "last_update": self._last_update,
+            "start_time": self._start_time,
+            "end_time": self._end_time,
+            "use_count": self._use_count,
+            "last_service": self._last_service,
+            "next_service": self._next_service,
         })
-        _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
+        
+        # Log the update for debugging
+        _LOGGER.debug(
+            "Updated current power sensor for %s: %.1fW (running: %s, last_update: %s)",
+            self._attr_name,
+            self._last_power,
+            self._was_on,
+            self._last_update
+        )
 
-        # Update icon and color based on power state
+        # Update the icon and color based on power state
         self._update_icon_and_color("on" if self._was_on else "off")
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
