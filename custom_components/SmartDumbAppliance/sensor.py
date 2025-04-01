@@ -580,6 +580,7 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
             "cycle_energy": 0.0,
             "cycle_cost": 0.0,
             "power_usage": 0.0,
+            "last_update": None,
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "current_power"
@@ -587,55 +588,22 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
 
     async def async_update(self) -> None:
         """Update the current power sensor state."""
-        try:
-            # Get current power reading
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found for %s", self._power_sensor, self._attr_name)
-                self._attr_available = False
-                return
+        await super().async_update()  # Use base class update logic
+        self._attr_native_value = self._last_power  # Use the power reading from base class
+        self._attr_available = True
 
-            current_power = float(power_state.state)
-            _LOGGER.debug(
-                "Power reading for %s: %.1fW (start: %.1fW, stop: %.1fW, dead zone: %.1fW)",
-                self._attr_name,
-                current_power,
-                self._start_watts,
-                self._stop_watts,
-                self._dead_zone
-            )
+        # Update attributes
+        self._attr_extra_state_attributes.update({
+            "is_running": self._was_on,
+            "cycle_energy": self._cycle_energy,
+            "cycle_cost": self._cycle_cost,
+            "power_usage": self._last_power,
+            "last_update": self._last_update,
+        })
+        _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
 
-            # Update the sensor state
-            self._attr_native_value = current_power
-            self._attr_available = True
-
-            # Update attributes
-            self._attr_extra_state_attributes.update({
-                "is_running": self._was_on,
-                "cycle_energy": self._cycle_energy,
-                "cycle_cost": self._cycle_cost,
-                "power_usage": current_power,
-            })
-            _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
-
-            # Update icon and color based on power state
-            self._update_icon_and_color("on" if self._was_on else "off")
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error(
-                "Error reading power sensor %s for %s: %s",
-                self._power_sensor,
-                self._attr_name,
-                err
-            )
-            self._attr_available = False
-        except Exception as err:
-            _LOGGER.error(
-                "Unexpected error updating %s: %s",
-                self._attr_name,
-                err
-            )
-            self._attr_available = False
+        # Update icon and color based on power state
+        self._update_icon_and_color("on" if self._was_on else "off")
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
     """Binary sensor for tracking if an appliance is running."""
