@@ -550,10 +550,13 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "current_power"
+        _LOGGER.debug("Initialized current power sensor for %s", self._attr_name)
 
     async def async_update(self) -> None:
         """Update the current power sensor state."""
         try:
+            _LOGGER.debug("Updating current power sensor for %s", self._attr_name)
+            
             # Get the power sensor state directly
             power_state = self.hass.states.get(self._power_sensor)
             if power_state is None:
@@ -561,12 +564,15 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
                 self._attr_available = False
                 return
 
+            _LOGGER.debug("Power sensor state: %s", power_state.state)
+
             # Update the current power value
             try:
                 current_power = float(power_state.state)
                 self._attr_native_value = current_power
                 self._attr_available = True
-            except (ValueError, TypeError):
+                _LOGGER.debug("Set current power to %.1fW", current_power)
+            except (ValueError, TypeError) as e:
                 _LOGGER.warning("Invalid power value from sensor %s: %s", self._power_sensor, power_state.state)
                 self._attr_available = False
                 return
@@ -581,6 +587,7 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
                 "cycle_cost": self._cycle_cost,
                 "power_usage": current_power,
             })
+            _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
 
             # Update icon and color based on power state
             self._update_icon_and_color("on" if self._was_on else "off")
