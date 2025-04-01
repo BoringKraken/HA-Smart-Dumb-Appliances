@@ -140,7 +140,7 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self.coordinator.async_remove_listener(self.async_write_ha_state)
+            self.coordinator.async_add_listener(self.async_write_ha_state)
         )
 
     async def async_update(self) -> None:
