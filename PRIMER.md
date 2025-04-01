@@ -158,5 +158,133 @@ service_reminder:
 2. More detailed energy analytics
 5. Enhanced visualization options
 
-## Support
-For issues or feature requests, please refer to the GitHub repository or Home Assistant community forums. 
+## Technical Architecture
+
+### Data Flow
+1. Power Sensor → Coordinator
+   - Coordinator subscribes to power sensor changes
+   - Processes power readings to determine appliance state
+   - Calculates energy usage and timing information
+   - Maintains running state and use count
+
+2. Coordinator → Sensors
+   - Coordinator provides data to all sensors
+   - Sensors receive updates through async_update()
+   - Each sensor type processes data differently:
+     - Current Power: Direct power reading
+     - Cumulative Energy: Energy calculations
+     - Service Status: Use count and maintenance tracking
+
+### Key Classes
+1. SmartDumbApplianceCoordinator
+   - Manages data updates and state tracking
+   - Handles power sensor subscriptions
+   - Calculates running state and energy usage
+   - Provides data to all sensors
+
+2. SmartDumbApplianceBase
+   - Base class for all sensors
+   - Handles common initialization and updates
+   - Manages icon and color updates
+   - Provides shared attributes and methods
+
+3. Sensor Types
+   - SmartDumbApplianceCurrentPowerSensor
+   - SmartDumbApplianceCumulativeEnergySensor
+   - SmartDumbApplianceServiceSensor
+   - SmartDumbApplianceBinarySensor
+
+### State Management
+1. Coordinator State
+   - power_state: Current power reading
+   - is_running: Appliance running state
+   - start_time: Cycle start timestamp
+   - end_time: Cycle end timestamp
+   - use_count: Total usage cycles
+   - cycle_energy: Current cycle energy
+   - cycle_cost: Current cycle cost
+
+2. Sensor State
+   - native_value: Primary sensor value
+   - extra_state_attributes: Additional data
+   - icon: Current display icon
+   - entity_picture: Colored icon image
+
+### Debug Logging
+The integration provides extensive debug logging at key points:
+
+1. Coordinator Logging
+   - Power sensor state changes
+   - Running state transitions
+   - Energy calculations
+   - Update timing information
+
+2. Sensor Logging
+   - Update receipt from coordinator
+   - State changes
+   - Energy calculations
+   - Service status changes
+
+3. Binary Sensor Logging
+   - State transitions
+   - Power readings
+   - Timing information
+
+### Common Issues and Solutions
+
+1. No Updates from Coordinator
+   - Check power sensor subscription
+   - Verify coordinator initialization
+   - Review coordinator logs
+   - Check power sensor availability
+
+2. Incorrect Running State
+   - Verify start/stop thresholds
+   - Check power sensor accuracy
+   - Review debounce settings
+   - Check coordinator logs
+
+3. Missing Energy Calculations
+   - Verify timing data
+   - Check power readings
+   - Review energy calculation logic
+   - Check sensor logs
+
+4. Service Status Issues
+   - Verify use count tracking
+   - Check service reminder settings
+   - Review service status logic
+   - Check service sensor logs
+
+### Development Guidelines
+
+1. Adding New Features
+   - Extend SmartDumbApplianceBase
+   - Update coordinator data structure
+   - Add appropriate logging
+   - Update documentation
+
+2. Modifying Existing Features
+   - Review coordinator impact
+   - Update all affected sensors
+   - Maintain logging consistency
+   - Update documentation
+
+3. Debugging
+   - Enable debug logging
+   - Monitor coordinator updates
+   - Check sensor processing
+   - Review state transitions
+
+### Testing
+1. Manual Testing
+   - Power sensor changes
+   - Running state transitions
+   - Energy calculations
+   - Service status updates
+
+2. Logging Verification
+   - Coordinator updates
+   - Sensor processing
+   - State changes
+   - Error conditions 

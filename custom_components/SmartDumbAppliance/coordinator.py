@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
+from homeassistant.core import callback
 
 from .const import (
     CONF_POWER_SENSOR,
@@ -57,6 +58,29 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._cycle_cost = 0.0
         self._was_on = False
 
+        # Subscribe to power sensor changes
+        self.async_on_remove(
+            self.hass.helpers.event.async_track_state_change(
+                self._power_sensor,
+                self._async_power_sensor_changed
+            )
+        )
+
+    @callback
+    def _async_power_sensor_changed(self, entity_id: str, old_state: Any, new_state: Any) -> None:
+        """Handle power sensor state changes."""
+        if new_state is None:
+            _LOGGER.debug("Power sensor %s state is None, skipping update", entity_id)
+            return
+        
+        _LOGGER.debug(
+            "Power sensor %s changed: old_state=%s, new_state=%s",
+            entity_id,
+            old_state.state if old_state else "None",
+            new_state.state
+        )
+        self.async_set_updated_data(self.async_update_data())
+
     async def async_update_data(self) -> ApplianceData:
         """
         Fetch data from the power sensor.
@@ -77,6 +101,20 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             current_power = float(power_state.state)
             last_update = dt_util.utcnow()
 
+            # Log all current state information
+            _LOGGER.debug(
+                "Current state - Power: %.1fW, Start threshold: %.1fW, Stop threshold: %.1fW, "
+                "Was on: %s, Start time: %s, End time: %s, Use count: %d, Cycle energy: %.3f kWh",
+                current_power,
+                self._start_watts,
+                self._stop_watts,
+                self._was_on,
+                self._start_time,
+                self._end_time,
+                self._use_count,
+                self._cycle_energy
+            )
+
             # Determine if the appliance is running
             is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
             
@@ -85,19 +123,23 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 self._start_time = last_update
                 self._end_time = None
                 _LOGGER.debug(
-                    "Appliance turned on (current: %.1fW, start: %.1fW)",
+                    "Appliance turned on - Current: %.1fW, Start threshold: %.1fW, Start time: %s",
                     current_power,
-                    self._start_watts
+                    self._start_watts,
+                    self._start_time
                 )
             elif not is_on and self._was_on:
                 self._end_time = last_update
                 self._use_count += 1
+                duration = self._end_time - self._start_time if self._start_time else "unknown"
                 _LOGGER.debug(
-                    "Appliance turned off (current: %.1fW, stop: %.1fW, Duration: %s, Total uses: %d)",
+                    "Appliance turned off - Current: %.1fW, Stop threshold: %.1fW, "
+                    "Duration: %s, Total uses: %d, End time: %s",
                     current_power,
                     self._stop_watts,
-                    self._end_time - self._start_time if self._start_time else "unknown",
-                    self._use_count
+                    duration,
+                    self._use_count,
+                    self._end_time
                 )
             
             self._was_on = is_on
@@ -106,6 +148,12 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             if self._start_time and is_on:
                 duration = (last_update - self._start_time).total_seconds() / 3600  # Convert to hours
                 self._cycle_energy = (current_power * duration) / 1000  # Convert to kWh
+                _LOGGER.debug(
+                    "Cycle energy updated - Duration: %.2f hours, Power: %.1fW, Energy: %.3f kWh",
+                    duration,
+                    current_power,
+                    self._cycle_energy
+                )
 
             # Create and return the data object
             data = ApplianceData(
@@ -119,13 +167,15 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 cycle_cost=self._cycle_cost,
             )
 
-            # Log the update
+            # Log the final update
             _LOGGER.debug(
-                "Coordinator updated: %.1fW (running: %s, use count: %d, cycle energy: %.3f kWh)",
+                "Coordinator update complete - Power: %.1fW, Running: %s, Use count: %d, "
+                "Cycle energy: %.3f kWh, Last update: %s",
                 current_power,
                 is_on,
                 self._use_count,
-                self._cycle_energy
+                self._cycle_energy,
+                last_update
             )
 
             return data

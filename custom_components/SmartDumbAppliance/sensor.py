@@ -360,51 +360,94 @@ class SmartDumbApplianceBase:
         return False
 
     async def async_update(self) -> None:
-        """
-        Update the sensor state.
-        
-        This method is called by the coordinator to update the sensor's state.
-        It ensures that:
-        1. The coordinator's data is up to date
-        2. The power sensor state is read and processed
-        3. All relevant attributes are updated
-        4. State changes are logged for debugging
-        """
-        # Wait for the coordinator to update
-        await self.coordinator.async_request_refresh()
-        
-        try:
-            # Get the latest data from the coordinator
-            data = self.coordinator.data
-            if data is None:
-                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
-                return
-
-            # Update the sensor state from coordinator data
-            self._last_update = data.last_update
-            self._last_power = data.power_state
-            self._was_on = data.is_running
-            self._start_time = data.start_time
-            self._end_time = data.end_time
-            self._use_count = data.use_count
-            self._cycle_energy = data.cycle_energy
-            self._cycle_cost = data.cycle_cost
-
-            # Log the update
+        """Update the sensor state."""
+        if not self.coordinator.last_update_success:
             _LOGGER.debug(
-                "Updated %s: %.1fW (running: %s, last_update: %s)",
-                self._attr_name,
-                self._last_power,
-                self._was_on,
-                self._last_update
+                "Sensor %s update skipped - coordinator update not successful",
+                self._attr_name
             )
+            return
 
-        except Exception as err:
-            _LOGGER.error(
-                "Error updating %s: %s",
-                self._attr_name,
-                err
+        data = self.coordinator.data
+        if data is None:
+            _LOGGER.debug(
+                "Sensor %s update skipped - no data available from coordinator",
+                self._attr_name
             )
+            return
+
+        # Log the incoming data
+        _LOGGER.debug(
+            "Sensor %s received update - Power: %.1fW, Running: %s, "
+            "Start time: %s, End time: %s, Use count: %d, Cycle energy: %.3f kWh",
+            self._attr_name,
+            data.power_state,
+            data.is_running,
+            data.start_time,
+            data.end_time,
+            data.use_count,
+            data.cycle_energy
+        )
+
+        # Update the state based on sensor type
+        old_state = self._attr_native_value
+        if isinstance(self, SmartDumbApplianceCurrentPowerSensor):
+            self._attr_native_value = data.power_state
+            _LOGGER.debug(
+                "Current Power sensor %s updated - Old: %.1fW, New: %.1fW",
+                self._attr_name,
+                old_state,
+                self._attr_native_value
+            )
+        elif isinstance(self, SmartDumbApplianceCumulativeEnergySensor):
+            if data.is_running and data.start_time:
+                # Calculate additional energy since last update
+                duration = (data.last_update - data.start_time).total_seconds() / 3600  # hours
+                additional_energy = (data.power_state * duration) / 1000  # kWh
+                self._attr_native_value += additional_energy
+                _LOGGER.debug(
+                    "Cumulative Energy sensor %s updated - Duration: %.2f hours, "
+                    "Power: %.1fW, Additional: %.3f kWh, Total: %.3f kWh",
+                    self._attr_name,
+                    duration,
+                    data.power_state,
+                    additional_energy,
+                    self._attr_native_value
+                )
+        elif isinstance(self, SmartDumbApplianceServiceSensor):
+            # Update service status based on use count
+            old_status = self._attr_native_value
+            if data.use_count >= self._service_reminder_count:
+                self._attr_native_value = "needs_service"
+            else:
+                self._attr_native_value = "ok"
+            
+            if old_status != self._attr_native_value:
+                _LOGGER.debug(
+                    "Service sensor %s status changed - Old: %s, New: %s, Use count: %d/%d",
+                    self._attr_name,
+                    old_status,
+                    self._attr_native_value,
+                    data.use_count,
+                    self._service_reminder_count
+                )
+
+        # Update attributes
+        self._attr_extra_state_attributes.update({
+            ATTR_POWER_USAGE: data.power_state,
+            ATTR_LAST_UPDATE: data.last_update,
+            ATTR_START_TIME: data.start_time,
+            ATTR_END_TIME: data.end_time,
+            ATTR_USE_COUNT: data.use_count,
+        })
+
+        # Log final state
+        _LOGGER.debug(
+            "Sensor %s update complete - State: %s, Last update: %s",
+            self._attr_name,
+            self._attr_native_value,
+            data.last_update
+        )
 
     def _update_icon_and_color(self, status: str, power_state: bool = None) -> None:
         """

@@ -111,52 +111,60 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         return False
 
     async def async_update(self) -> None:
-        """
-        Update the binary sensor state.
-        
-        This method is called by the coordinator to update the sensor's state
-        and attributes. It:
-        1. Gets the latest data from the coordinator
-        2. Updates the binary state (on/off)
-        3. Updates all relevant attributes
-        4. Logs state changes for debugging
-        """
-        try:
-            # Wait for the coordinator to update
-            await self.coordinator.async_request_refresh()
-            
-            # Get the latest data from the coordinator
-            data = self.coordinator.data
-            if data is None:
-                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
-                return
-
-            # Update the binary state
-            self._attr_is_on = data.is_running
-            
-            # Update all attributes with the latest values
-            self._attr_extra_state_attributes.update({
-                # Current state
-                "power_usage": data.power_state,
-                
-                # Timing information
-                "last_update": data.last_update,
-                "start_time": data.start_time,
-                "end_time": data.end_time,
-            })
-            
-            # Log the update for debugging
+        """Update the binary sensor state."""
+        if not self.coordinator.last_update_success:
             _LOGGER.debug(
-                "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
-                self._attr_name,
-                "on" if data.is_running else "off",
-                data.power_state,
-                data.last_update
+                "Binary sensor %s update skipped - coordinator update not successful",
+                self._attr_name
             )
+            return
 
-        except Exception as err:
-            _LOGGER.error(
-                "Error updating binary sensor %s: %s",
+        data = self.coordinator.data
+        if data is None:
+            _LOGGER.debug(
+                "Binary sensor %s update skipped - no data available from coordinator",
+                self._attr_name
+            )
+            return
+
+        # Log the incoming data
+        _LOGGER.debug(
+            "Binary sensor %s received update - Power: %.1fW, Running: %s, "
+            "Start time: %s, End time: %s, Use count: %d",
+            self._attr_name,
+            data.power_state,
+            data.is_running,
+            data.start_time,
+            data.end_time,
+            data.use_count
+        )
+
+        # Update the state
+        old_state = self._attr_is_on
+        self._attr_is_on = data.is_running
+        
+        # Update attributes
+        self._attr_extra_state_attributes.update({
+            ATTR_POWER_USAGE: data.power_state,
+            ATTR_LAST_UPDATE: data.last_update,
+            ATTR_START_TIME: data.start_time,
+            ATTR_END_TIME: data.end_time,
+            ATTR_USE_COUNT: data.use_count,
+        })
+
+        # Log state change if it occurred
+        if old_state != self._attr_is_on:
+            _LOGGER.debug(
+                "Binary sensor %s state changed - Old: %s, New: %s, Power: %.1fW",
                 self._attr_name,
-                err
+                old_state,
+                self._attr_is_on,
+                data.power_state
+            )
+        else:
+            _LOGGER.debug(
+                "Binary sensor %s state unchanged - State: %s, Power: %.1fW",
+                self._attr_name,
+                self._attr_is_on,
+                data.power_state
             ) 
