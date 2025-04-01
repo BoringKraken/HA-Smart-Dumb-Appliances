@@ -302,9 +302,6 @@ async def async_setup_entry(
     
     async_add_entities(entities)
 
-    # Start the coordinator
-    await coordinator.async_config_entry_first_refresh()
-
 class SmartDumbApplianceBase(SensorEntity):
     """Base class for Smart Dumb Appliance sensors."""
     

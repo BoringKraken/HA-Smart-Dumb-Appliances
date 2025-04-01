@@ -41,6 +41,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=f"{config_entry.data.get('name', 'Smart Dumb Appliance')}_coordinator",
+            update_method=self._async_update_data,
             update_interval=timedelta(seconds=30),  # Poll every 30 seconds as backup
         )
         
