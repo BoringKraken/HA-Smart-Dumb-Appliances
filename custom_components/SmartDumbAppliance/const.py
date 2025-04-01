@@ -23,10 +23,10 @@ CONF_SERVICE_REMINDER_COUNT = "service_reminder_count"  # Number of uses before 
 CONF_SERVICE_REMINDER_MESSAGE = "service_reminder_message"  # Custom message for service reminder
 
 # Default values for configuration options
-DEFAULT_START_WATTS = 100.0               # Default start threshold (100W)
-DEFAULT_STOP_WATTS = 50.0                 # Default stop threshold (50W)
+DEFAULT_START_WATTS = 8.0               # Default start threshold (100W)
+DEFAULT_STOP_WATTS = 2.0                 # Default stop threshold (50W)
 DEFAULT_DEBOUNCE = 5                      # Default debounce time (5 seconds)
-DEFAULT_SERVICE_REMINDER_COUNT = 100       # Default number of uses before service reminder
+DEFAULT_SERVICE_REMINDER_COUNT = 20       # Default number of uses before service reminder
 
 # Attribute names for the appliance state - these are the data points we track
 ATTR_START_TIME = "start_time"            # When the appliance started running

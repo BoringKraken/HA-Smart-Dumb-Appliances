@@ -33,14 +33,12 @@ from .const import (
     CONF_COST_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
-    CONF_DEAD_ZONE,
     CONF_DEBOUNCE,
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_COUNT,
     CONF_SERVICE_REMINDER_MESSAGE,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    DEFAULT_DEAD_ZONE,
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT,
     ATTR_POWER_USAGE,
@@ -354,7 +352,6 @@ class SmartDumbApplianceBase:
         self._cost_sensor = config_entry.data.get(CONF_COST_SENSOR)
         self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
         self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._dead_zone = config_entry.data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
         self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
         self._service_reminder = config_entry.data.get(CONF_SERVICE_REMINDER, False)
         self._service_reminder_count = config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
@@ -379,12 +376,11 @@ class SmartDumbApplianceBase:
 
         # Log initialization
         _LOGGER.info(
-            "Initializing %s with power sensor %s (start: %sW, stop: %sW, dead zone: %sW)",
+            "Initializing %s with power sensor %s (start: %sW, stop: %sW)",
             self._attr_name,
             self._power_sensor,
             self._start_watts,
-            self._stop_watts,
-            self._dead_zone
+            self._stop_watts
         )
 
     @property
