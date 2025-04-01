@@ -303,6 +303,9 @@ async def async_setup_entry(
     # Add config entry and hass to coordinator for power sensor access
     coordinator.config_entry = config_entry
     coordinator.hass = hass
+    
+    # Store coordinator in the update method for access
+    async_update_data.coordinator = coordinator
 
     # Create and add the sensors
     entities = [
@@ -338,14 +341,14 @@ async def async_update_data() -> dict[str, Any]:
     is_running = False
     
     # Get the power sensor from the coordinator's config
-    if hasattr(coordinator, 'config_entry'):
-        power_sensor = coordinator.config_entry.data.get(CONF_POWER_SENSOR)
+    if hasattr(async_update_data, 'coordinator'):
+        power_sensor = async_update_data.coordinator.config_entry.data.get(CONF_POWER_SENSOR)
         if power_sensor:
-            power_state = coordinator.hass.states.get(power_sensor)
+            power_state = async_update_data.coordinator.hass.states.get(power_sensor)
             if power_state is not None:
                 try:
                     power_state = float(power_state.state)
-                    is_running = power_state > coordinator.config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+                    is_running = power_state > async_update_data.coordinator.config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid power sensor state: %s", power_state.state)
     
@@ -402,10 +405,12 @@ class SmartDumbApplianceBase:
         except (ValueError, TypeError):
             _LOGGER.warning("Could not get initial power reading from %s", self._power_sensor)
 
-        # Log initialization
+        # Log initialization with sensor type
+        sensor_type = self.__class__.__name__.replace('SmartDumbAppliance', '').replace('Sensor', '')
         _LOGGER.info(
-            "Initializing %s with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
+            "Initializing %s (%s) with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
             self._attr_name,
+            sensor_type,
             self._power_sensor,
             self._last_power,
             self._start_watts,

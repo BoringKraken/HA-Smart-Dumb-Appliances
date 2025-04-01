@@ -103,11 +103,20 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self._attr_device_class = "running"
         self._attr_icon = "mdi:washing-machine"  # Default icon, will be updated based on appliance type
 
-        # Log initialization
+        # Get initial power reading
+        try:
+            power_state = self.hass.states.get(self._power_sensor)
+            if power_state is not None:
+                self._last_power = float(power_state.state)
+        except (ValueError, TypeError):
+            _LOGGER.warning("Could not get initial power reading from %s", self._power_sensor)
+
+        # Log initialization with sensor type
         _LOGGER.info(
-            "Initializing %s with power sensor %s (start: %sW, stop: %sW)",
+            "Initializing %s (Binary) with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
             self._attr_name,
             self._power_sensor,
+            self._last_power,
             self._start_watts,
             self._stop_watts
         )
@@ -163,19 +172,19 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
                 self._start_time = self._last_update
                 self._end_time = None
                 _LOGGER.debug(
-                    "%s turned on (Power: %.1fW, Start: %sW, Stop: %sW)",
+                    "%s turned on (current: %.1fW, start: %.1fW)",
                     self._attr_name,
                     current_power,
-                    self._start_watts,
-                    self._stop_watts
+                    self._start_watts
                 )
             elif not is_on and self._was_on:
                 self._end_time = self._last_update
                 self._use_count += 1
                 _LOGGER.debug(
-                    "%s turned off (Power: %.1fW, Duration: %s, Total uses: %d)",
+                    "%s turned off (current: %.1fW, stop: %.1fW, Duration: %s, Total uses: %d)",
                     self._attr_name,
                     current_power,
+                    self._stop_watts,
                     self._end_time - self._start_time if self._start_time else "unknown",
                     self._use_count
                 )
