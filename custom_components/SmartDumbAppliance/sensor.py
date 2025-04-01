@@ -298,7 +298,7 @@ async def async_setup_entry(
         hass,
         _LOGGER,
         name=f"{device_name}_coordinator",
-        update_method=lambda: None,  # We'll handle updates in the sensor
+        update_method=lambda: True,  # Return True to indicate successful update
         update_interval=timedelta(seconds=1),
     )
 
@@ -309,6 +309,9 @@ async def async_setup_entry(
         SmartDumbApplianceBinarySensor(hass, config_entry, coordinator),
         SmartDumbApplianceServiceSensor(hass, config_entry, coordinator),
     ])
+
+    # Start the coordinator
+    await coordinator.async_config_entry_first_refresh()
 
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
@@ -349,6 +352,16 @@ class SmartDumbApplianceBase:
         self._cycle_energy = 0.0
         self._cycle_cost = 0.0
 
+        # Log initialization
+        _LOGGER.info(
+            "Initializing %s with power sensor %s (start: %sW, stop: %sW, dead zone: %sW)",
+            self._attr_name,
+            self._power_sensor,
+            self._start_watts,
+            self._stop_watts,
+            self._dead_zone
+        )
+
     def _update_icon_and_color(self, status: str, power_state: bool = None) -> None:
         """
         Update the icon and color based on status.
@@ -368,15 +381,25 @@ class SmartDumbApplianceBase:
     async def async_update(self) -> None:
         """Update the sensor state."""
         try:
+            # Get current power reading
             power_state = self.hass.states.get(self._power_sensor)
             if power_state is None:
-                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
+                _LOGGER.warning("Power sensor %s not found for %s", self._power_sensor, self._attr_name)
                 return
 
             current_power = float(power_state.state)
+            _LOGGER.debug(
+                "Power reading for %s: %.1fW (start: %.1fW, stop: %.1fW, dead zone: %.1fW)",
+                self._attr_name,
+                current_power,
+                self._start_watts,
+                self._stop_watts,
+                self._dead_zone
+            )
+
+            # Update last power and timestamp
             self._last_power = current_power
-            now = datetime.now()
-            self._last_update = now
+            self._last_update = dt_util.utcnow()
 
             # Log threshold crossings
             if current_power > self._start_watts and not self._was_on:
@@ -404,7 +427,7 @@ class SmartDumbApplianceBase:
             is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
             
             if is_on and not self._was_on:
-                self._start_time = now
+                self._start_time = self._last_update
                 self._end_time = None
                 self._cycle_energy = 0.0
                 self._cycle_cost = 0.0
@@ -415,7 +438,7 @@ class SmartDumbApplianceBase:
                     self._start_watts
                 )
             elif not is_on and self._was_on:
-                self._end_time = now
+                self._end_time = self._last_update
                 self._use_count += 1
                 duration = self._end_time - self._start_time if self._start_time else "unknown"
                 
@@ -435,8 +458,8 @@ class SmartDumbApplianceBase:
                 )
                 
                 if self._service_reminder and self._use_count >= self._service_reminder_count:
-                    self._last_service = self._next_service or now
-                    self._next_service = now + timedelta(days=1)
+                    self._last_service = self._next_service or self._last_update
+                    self._next_service = self._last_update + timedelta(days=1)
                     _LOGGER.info(
                         "Service reminder for %s: %s (Use count: %d/%d)",
                         self._attr_name,
@@ -448,7 +471,7 @@ class SmartDumbApplianceBase:
             self._was_on = is_on
 
             if is_on and self._start_time is not None:
-                delta = (now - self._start_time).total_seconds()
+                delta = (self._last_update - self._start_time).total_seconds()
                 if delta > self._debounce:
                     energy = (current_power * delta) / 3600000
                     self._total_energy += energy
@@ -463,8 +486,18 @@ class SmartDumbApplianceBase:
                             self._cycle_cost += cycle_cost
 
         except (ValueError, TypeError) as err:
-            _LOGGER.error("Error updating sensor: %s", err)
-            return
+            _LOGGER.error(
+                "Error reading power sensor %s for %s: %s",
+                self._power_sensor,
+                self._attr_name,
+                err
+            )
+        except Exception as err:
+            _LOGGER.error(
+                "Unexpected error updating %s: %s",
+                self._attr_name,
+                err
+            )
 
 class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEntity):
     """Sensor for tracking cumulative energy usage of a smart dumb appliance."""
@@ -554,47 +587,21 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
 
     async def async_update(self) -> None:
         """Update the current power sensor state."""
-        try:
-            _LOGGER.debug("Updating current power sensor for %s", self._attr_name)
-            
-            # Get the power sensor state directly
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
-                self._attr_available = False
-                return
+        await super().async_update()
+        self._attr_native_value = self._last_power
+        self._attr_available = True
 
-            _LOGGER.debug("Power sensor state: %s", power_state.state)
+        # Update attributes
+        self._attr_extra_state_attributes.update({
+            "is_running": self._was_on,
+            "cycle_energy": self._cycle_energy,
+            "cycle_cost": self._cycle_cost,
+            "power_usage": self._last_power,
+        })
+        _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
 
-            # Update the current power value
-            try:
-                current_power = float(power_state.state)
-                self._attr_native_value = current_power
-                self._attr_available = True
-                _LOGGER.debug("Set current power to %.1fW", current_power)
-            except (ValueError, TypeError) as e:
-                _LOGGER.warning("Invalid power value from sensor %s: %s", self._power_sensor, power_state.state)
-                self._attr_available = False
-                return
-
-            # Update the base class state to maintain other tracking
-            await super().async_update()
-
-            # Update attributes
-            self._attr_extra_state_attributes.update({
-                "is_running": self._was_on,
-                "cycle_energy": self._cycle_energy,
-                "cycle_cost": self._cycle_cost,
-                "power_usage": current_power,
-            })
-            _LOGGER.debug("Updated attributes: %s", self._attr_extra_state_attributes)
-
-            # Update icon and color based on power state
-            self._update_icon_and_color("on" if self._was_on else "off")
-
-        except Exception as e:
-            _LOGGER.error("Error updating current power sensor: %s", e)
-            self._attr_available = False
+        # Update icon and color based on power state
+        self._update_icon_and_color("on" if self._was_on else "off")
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
     """Binary sensor for tracking if an appliance is running."""
