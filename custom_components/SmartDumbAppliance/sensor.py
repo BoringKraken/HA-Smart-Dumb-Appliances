@@ -562,6 +562,7 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_available = True
+        self._attr_native_value = 0.0  # Initialize with 0
         
         # Define all possible attributes that this sensor can have
         self._attr_extra_state_attributes = {
@@ -599,14 +600,14 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         await super().async_update()
         
         # Update the main power value
-        self._attr_native_value = self._last_power
+        self._attr_native_value = float(self._last_power)  # Ensure it's a float
         self._attr_available = True
 
         # Update all attributes with the latest values
         self._attr_extra_state_attributes.update({
             # Current state
             "is_running": self._was_on,
-            "power_usage": self._last_power,
+            "power_usage": float(self._last_power),  # Ensure it's a float
             
             # Timing information
             "last_update": self._last_update,
