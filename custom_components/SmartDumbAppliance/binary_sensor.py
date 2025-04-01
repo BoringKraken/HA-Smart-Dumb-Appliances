@@ -91,6 +91,12 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "power_state"
         
+        # Load configuration
+        self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
+        self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+        self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
+        self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        
         # Define all possible attributes that this sensor can have
         self._attr_extra_state_attributes = {
             # Current state
@@ -101,14 +107,41 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
             "start_time": None,
             "end_time": None,
             
+            # Usage tracking
+            "use_count": 0,
+            
             # Configuration
-            "power_sensor": config_entry.data[CONF_POWER_SENSOR],
+            "start_watts": self._start_watts,
+            "stop_watts": self._stop_watts,
+            "debounce": self._debounce,
+            "power_sensor": self._power_sensor,
         }
+
+        # Log initialization
+        _LOGGER.info(
+            "Initializing binary sensor %s with power sensor %s (start: %.1fW, stop: %.1fW)",
+            self._attr_name,
+            self._power_sensor,
+            self._start_watts,
+            self._stop_watts
+        )
 
     @property
     def should_poll(self) -> bool:
         """Return False as we use the coordinator for updates."""
         return False
+
+    @property
+    def available(self) -> bool:
+        """Return True if the coordinator is available."""
+        return self.coordinator.last_update_success
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.async_remove_listener(self.async_write_ha_state)
+        )
 
     async def async_update(self) -> None:
         """Update the binary sensor state."""

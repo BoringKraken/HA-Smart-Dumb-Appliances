@@ -305,7 +305,7 @@ async def async_setup_entry(
     # Start the coordinator
     await coordinator.async_config_entry_first_refresh()
 
-class SmartDumbApplianceBase:
+class SmartDumbApplianceBase(SensorEntity):
     """Base class for Smart Dumb Appliance sensors."""
     
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: SmartDumbApplianceCoordinator) -> None:
@@ -358,6 +358,18 @@ class SmartDumbApplianceBase:
     def should_poll(self) -> bool:
         """Return False as we use the coordinator for updates."""
         return False
+
+    @property
+    def available(self) -> bool:
+        """Return True if the coordinator is available."""
+        return self.coordinator.last_update_success
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.async_remove_listener(self.async_write_ha_state)
+        )
 
     async def async_update(self) -> None:
         """Update the sensor state."""
