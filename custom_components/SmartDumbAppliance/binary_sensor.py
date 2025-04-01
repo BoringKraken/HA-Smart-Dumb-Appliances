@@ -49,7 +49,7 @@ async def async_setup_entry(
         hass,
         _LOGGER,
         name=f"{entry.data.get('device_name', 'Smart Dumb Appliance')}_binary_coordinator",
-        update_method=lambda: True,  # Return True to indicate successful update
+        update_method=async_update_data,  # Use the async update method
         update_interval=timedelta(seconds=1),
     )
     
@@ -58,6 +58,10 @@ async def async_setup_entry(
     
     # Start the coordinator
     await coordinator.async_config_entry_first_refresh()
+
+async def async_update_data() -> dict:
+    """Fetch data from the power sensor."""
+    return {"last_update": datetime.now()}
 
 class SmartDumbApplianceBinarySensor(BinarySensorEntity):
     """
@@ -94,6 +98,10 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self._use_count = 0
         self._was_on = False
         self._attr_is_on = False
+        
+        # Set device class and icon
+        self._attr_device_class = "running"
+        self._attr_icon = "mdi:washing-machine"  # Default icon, will be updated based on appliance type
 
         # Log initialization
         _LOGGER.info(
