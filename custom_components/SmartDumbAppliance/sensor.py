@@ -590,41 +590,65 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         
         This method is called by the coordinator to update the sensor's state
         and attributes. It ensures that:
-        1. The base class update logic is executed to get latest power readings
-        2. The current power value is updated
-        3. All relevant attributes are refreshed
-        4. The icon and color are updated based on the power state
-        5. Debug logging is performed for troubleshooting
+        1. The current power reading is fetched directly from the power sensor
+        2. The sensor state and attributes are updated
+        3. The icon and color are updated based on the power state
+        4. Debug logging is performed for troubleshooting
         """
-        # First update the base class to get the latest power readings
-        await super().async_update()
-        
-        # Update the main power value
-        self._attr_native_value = float(self._last_power)  # Ensure it's a float
-        self._attr_available = True
+        try:
+            # Get current power reading
+            power_state = self.hass.states.get(self._power_sensor)
+            if power_state is None:
+                _LOGGER.warning("Power sensor %s not found for %s", self._power_sensor, self._attr_name)
+                return
 
-        # Update all attributes with the latest values
-        self._attr_extra_state_attributes.update({
-            # Current state
-            "is_running": self._was_on,
-            "power_usage": float(self._last_power),  # Ensure it's a float
+            current_power = float(power_state.state)
+            self._last_power = current_power
+            self._last_update = dt_util.utcnow()
+
+            # Determine if the appliance is running
+            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
             
-            # Timing information
-            "last_update": self._last_update,
-        })
-        
-        # Log the update for debugging
-        _LOGGER.debug(
-            "Updated current power sensor for %s: %.1fW (current: %.1fW, running: %s, last_update: %s)",
-            self._attr_name,
-            self._last_power,
-            self._last_power,
-            self._was_on,
-            self._last_update
-        )
+            # Update the main power value
+            self._attr_native_value = current_power
+            self._attr_available = True
 
-        # Update the icon and color based on power state
-        self._update_icon_and_color("on" if self._was_on else "off")
+            # Update all attributes with the latest values
+            self._attr_extra_state_attributes.update({
+                # Current state
+                "is_running": is_on,
+                "power_usage": current_power,
+                
+                # Timing information
+                "last_update": self._last_update,
+            })
+            
+            # Log the update for debugging
+            _LOGGER.debug(
+                "Updated current power sensor for %s: %.1fW (current: %.1fW, running: %s, last_update: %s)",
+                self._attr_name,
+                current_power,
+                current_power,
+                is_on,
+                self._last_update
+            )
+
+            # Update the icon and color based on power state
+            self._update_icon_and_color("on" if is_on else "off")
+
+        except (ValueError, TypeError) as err:
+            _LOGGER.error(
+                "Error reading power sensor %s for %s: %s",
+                self._power_sensor,
+                self._attr_name,
+                err
+            )
+        except Exception as err:
+            _LOGGER.error(
+                "Unexpected error updating %s: %s",
+                self._attr_name,
+                err
+            )
 
 class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
     """
