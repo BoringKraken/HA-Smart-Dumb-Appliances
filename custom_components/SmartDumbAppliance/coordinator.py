@@ -58,13 +58,17 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._cycle_cost = 0.0
         self._was_on = False
 
-        # Subscribe to power sensor changes
-        self.async_on_remove(
-            self.hass.helpers.event.async_track_state_change(
-                self._power_sensor,
-                self._async_power_sensor_changed
-            )
+        # Store the unsubscribe callback
+        self._unsubscribe = hass.helpers.event.async_track_state_change(
+            self._power_sensor,
+            self._async_power_sensor_changed
         )
+
+    async def async_shutdown(self) -> None:
+        """Clean up resources."""
+        if self._unsubscribe:
+            self._unsubscribe()
+        await super().async_shutdown()
 
     @callback
     def _async_power_sensor_changed(self, entity_id: str, old_state: Any, new_state: Any) -> None:
