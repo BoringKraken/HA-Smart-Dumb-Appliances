@@ -323,9 +323,20 @@ async def async_update_data() -> dict[str, Any]:
     periodically to update the sensor data.
     
     Returns:
-        dict: The updated sensor data
+        dict: The updated sensor data containing:
+            - last_update: Current timestamp
+            - power_state: Current power reading
+            - is_running: Whether the appliance is running
     """
-    return {"last_update": dt_util.utcnow()}
+    # Get the current timestamp
+    last_update = dt_util.utcnow()
+    
+    # Return the data dictionary
+    return {
+        "last_update": last_update,
+        "power_state": None,  # Will be updated by individual sensors
+        "is_running": False,  # Will be updated by individual sensors
+    }
 
 class SmartDumbApplianceBase:
     """Base class for Smart Dumb Appliance sensors."""
@@ -404,17 +415,22 @@ class SmartDumbApplianceBase:
 
             current_power = float(power_state.state)
             _LOGGER.debug(
-                "Power reading for %s: %.1fW (start: %.1fW, stop: %.1fW, dead zone: %.1fW)",
+                "Power reading for %s: %.1fW (start: %.1fW, stop: %.1fW)",
                 self._attr_name,
                 current_power,
                 self._start_watts,
-                self._stop_watts,
-                self._dead_zone
+                self._stop_watts
             )
 
             # Update last power and timestamp
             self._last_power = current_power
             self._last_update = dt_util.utcnow()
+
+            # Update coordinator data
+            self.coordinator.data.update({
+                "power_state": current_power,
+                "is_running": current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
+            })
 
             # Log threshold crossings
             if current_power > self._start_watts and not self._was_on:
@@ -430,13 +446,6 @@ class SmartDumbApplianceBase:
                     self._attr_name,
                     current_power,
                     self._stop_watts
-                )
-            elif current_power < self._dead_zone and self._was_on:
-                _LOGGER.debug(
-                    "%s crossed dead zone threshold (%.1fW < %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._dead_zone
                 )
 
             is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)

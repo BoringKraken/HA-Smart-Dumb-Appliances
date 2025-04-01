@@ -53,7 +53,8 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 
 - **Name**: Display name for the appliance.
 - **Sensor Entity ID**: Sensor providing energy data.
-- **Dead Zone**: Energy threshold below which the appliance is off.
+- **Start Watts**: Power threshold that indicates appliance has started.
+- **Stop Watts**: Power threshold that indicates appliance has stopped.
 - **Debounce Time**: Time to confirm state changes.
 - **Cost Helper Entity ID**: Used for calculating usage cost.
 - **Service Reminder**: Use count for maintenance reminders.
@@ -61,12 +62,15 @@ Smart Dumb Appliance is a custom integration for Home Assistant designed to moni
 ## Usage
 
 - Monitor appliance status via the Home Assistant dashboard.
+- Track energy usage and costs.
 - Receive maintenance reminders through Home Assistant notifications.
 
 ## Troubleshooting
 
-- Verify energy sensors provide accurate values.
+- Verify power sensors provide accurate values.
 - Check Home Assistant logs (`Configuration` > `Logs`) for error messages related to this integration.
+- Ensure start watts is higher than stop watts.
+- Adjust debounce time if experiencing rapid on/off cycling.
 
 ## Support
 

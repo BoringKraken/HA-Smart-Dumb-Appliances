@@ -56,10 +56,6 @@ def validate_watt_thresholds(data: dict[str, Any]) -> dict[str, str]:
     if data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS) >= data.get(CONF_START_WATTS, DEFAULT_START_WATTS):
         errors[CONF_STOP_WATTS] = "Stop watts must be less than start watts"
     
-    # Check that dead zone is less than stop watts
-    if data.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE) >= data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS):
-        errors[CONF_DEAD_ZONE] = "Dead zone must be less than stop watts"
-    
     return errors
 
 class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -143,14 +139,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.EntitySelectorConfig(domain=["input_number", "number"])
             ),
             vol.Optional(
-                CONF_DEAD_ZONE,
-                default=DEFAULT_DEAD_ZONE,
-                description={
-                    "suffix": " watts",
-                    "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts."
-                }
-            ): vol.Coerce(float),
-            vol.Optional(
                 CONF_DEBOUNCE,
                 default=DEFAULT_DEBOUNCE,
                 description={
@@ -209,7 +197,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 **current_config,  # Keep any values not in attributes
                 CONF_START_WATTS: energy_sensor.attributes.get("start_watts", current_config.get(CONF_START_WATTS, DEFAULT_START_WATTS)),
                 CONF_STOP_WATTS: energy_sensor.attributes.get("stop_watts", current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)),
-                CONF_DEAD_ZONE: energy_sensor.attributes.get("dead_zone", current_config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)),
                 CONF_DEBOUNCE: energy_sensor.attributes.get("debounce", current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
                 CONF_POWER_SENSOR: energy_sensor.attributes.get("power_sensor", current_config.get(CONF_POWER_SENSOR)),
                 CONF_COST_SENSOR: energy_sensor.attributes.get("cost_sensor", current_config.get(CONF_COST_SENSOR)),
@@ -325,22 +312,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     description={
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts. When power drops below this value, the appliance is considered 'off'."
-                    }
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=0.1,
-                        max=10000,
-                        step=0.1,
-                        unit_of_measurement="watts",
-                        mode=selector.NumberSelectorMode.BOX,
-                    )
-                ),
-                vol.Optional(
-                    CONF_DEAD_ZONE,
-                    default=current_config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE),
-                    description={
-                        "suffix": " watts",
-                        "tooltip": "Minimum power threshold to consider appliance as 'on'. Must be lower than stop watts. Prevents false readings from standby power."
                     }
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
