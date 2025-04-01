@@ -299,6 +299,10 @@ async def async_setup_entry(
         update_method=async_update_data,
         update_interval=timedelta(seconds=1),
     )
+    
+    # Add config entry and hass to coordinator for power sensor access
+    coordinator.config_entry = config_entry
+    coordinator.hass = hass
 
     # Create and add the sensors
     entities = [
@@ -329,11 +333,27 @@ async def async_update_data() -> dict[str, Any]:
     # Get the current timestamp
     last_update = dt_util.utcnow()
     
+    # Get the power sensor state
+    power_state = None
+    is_running = False
+    
+    # Get the power sensor from the coordinator's config
+    if hasattr(coordinator, 'config_entry'):
+        power_sensor = coordinator.config_entry.data.get(CONF_POWER_SENSOR)
+        if power_sensor:
+            power_state = coordinator.hass.states.get(power_sensor)
+            if power_state is not None:
+                try:
+                    power_state = float(power_state.state)
+                    is_running = power_state > coordinator.config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
+                except (ValueError, TypeError):
+                    _LOGGER.warning("Invalid power sensor state: %s", power_state.state)
+    
     # Return the data dictionary
     return {
         "last_update": last_update,
-        "power_state": None,  # Will be updated by individual sensors
-        "is_running": False,  # Will be updated by individual sensors
+        "power_state": power_state,
+        "is_running": is_running,
     }
 
 class SmartDumbApplianceBase:
@@ -374,11 +394,20 @@ class SmartDumbApplianceBase:
         self._cycle_energy = 0.0
         self._cycle_cost = 0.0
 
+        # Get initial power reading
+        try:
+            power_state = self.hass.states.get(self._power_sensor)
+            if power_state is not None:
+                self._last_power = float(power_state.state)
+        except (ValueError, TypeError):
+            _LOGGER.warning("Could not get initial power reading from %s", self._power_sensor)
+
         # Log initialization
         _LOGGER.info(
-            "Initializing %s with power sensor %s (start: %sW, stop: %sW)",
+            "Initializing %s with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
             self._attr_name,
             self._power_sensor,
+            self._last_power,
             self._start_watts,
             self._stop_watts
         )
@@ -411,8 +440,9 @@ class SmartDumbApplianceBase:
 
             current_power = float(power_state.state)
             _LOGGER.debug(
-                "Power reading for %s: %.1fW (start: %.1fW, stop: %.1fW)",
+                "Power reading for %s: %.1fW (current: %.1fW, start: %.1fW, stop: %.1fW)",
                 self._attr_name,
+                current_power,
                 current_power,
                 self._start_watts,
                 self._stop_watts
@@ -431,14 +461,14 @@ class SmartDumbApplianceBase:
             # Log threshold crossings
             if current_power > self._start_watts and not self._was_on:
                 _LOGGER.debug(
-                    "%s crossed start threshold (%.1fW > %.1fW)",
+                    "%s crossed start threshold (current: %.1fW, start: %.1fW)",
                     self._attr_name,
                     current_power,
                     self._start_watts
                 )
             elif current_power < self._stop_watts and self._was_on:
                 _LOGGER.debug(
-                    "%s crossed stop threshold (%.1fW < %.1fW)",
+                    "%s crossed stop threshold (current: %.1fW, stop: %.1fW)",
                     self._attr_name,
                     current_power,
                     self._stop_watts
@@ -452,7 +482,7 @@ class SmartDumbApplianceBase:
                 self._cycle_energy = 0.0
                 self._cycle_cost = 0.0
                 _LOGGER.info(
-                    "%s turned on (Power: %.1fW, Start threshold: %.1fW)",
+                    "%s turned on (current: %.1fW, start: %.1fW)",
                     self._attr_name,
                     current_power,
                     self._start_watts
@@ -668,8 +698,9 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         
         # Log the update for debugging
         _LOGGER.debug(
-            "Updated current power sensor for %s: %.1fW (running: %s, last_update: %s)",
+            "Updated current power sensor for %s: %.1fW (current: %.1fW, running: %s, last_update: %s)",
             self._attr_name,
+            self._last_power,
             self._last_power,
             self._was_on,
             self._last_update
@@ -758,7 +789,7 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
         
         # Log the update for debugging
         _LOGGER.debug(
-            "Updated binary sensor for %s: %s (Power: %.1fW, last_update: %s)",
+            "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
             self._attr_name,
             "on" if self._was_on else "off",
             self._last_power,
@@ -878,9 +909,10 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             
         # Log the update for debugging
         _LOGGER.debug(
-            "Updated service sensor for %s: %s (Use count: %d/%d, last_update: %s, running: %s, cycle energy: %.3f kWh, cycle cost: %.2f)",
+            "Updated service sensor for %s: %s (current: %.1fW, use count: %d/%d, last_update: %s, running: %s, cycle energy: %.3f kWh, cycle cost: %.2f)",
             self._attr_name,
             self._attr_native_value,
+            self._last_power,
             self._use_count,
             self._service_reminder_count,
             self._last_update,
