@@ -24,7 +24,6 @@ from .const import (
     CONF_COST_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
-    CONF_DEAD_ZONE,
     CONF_DEBOUNCE,
     CONF_DEVICE_NAME,
     CONF_SERVICE_REMINDER,
@@ -32,7 +31,6 @@ from .const import (
     CONF_SERVICE_REMINDER_MESSAGE,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    DEFAULT_DEAD_ZONE,
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT
 )
@@ -85,7 +83,6 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         - Power sensor (required)
         - Start/Stop watt thresholds (required)
         - Cost sensor (optional)
-        - Dead zone (optional)
         - Debounce time (optional)
         - Service reminder settings (optional)
         """
