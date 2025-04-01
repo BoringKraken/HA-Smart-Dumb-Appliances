@@ -89,7 +89,11 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         # Initialize state tracking
         self._last_update = None
         self._last_power = 0.0
+        self._start_time = None
+        self._end_time = None
+        self._use_count = 0
         self._was_on = False
+        self._attr_is_on = False
 
         # Log initialization
         _LOGGER.info(

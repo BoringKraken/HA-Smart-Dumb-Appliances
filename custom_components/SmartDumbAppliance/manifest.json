@@ -1,7 +1,7 @@
 {
   "domain": "smart_dumb_appliance",
   "name": "Smart Dumb Appliance",
-  "version": "1.4.14-beta.19",
+  "version": "1.4.14-beta.20",
   "documentation": "https://github.com/BoringKraken/HA-Smart-Dumb-Appliances",
   "dependencies": [],
   "codeowners": ["@BoringKraken"],
@@ -10,3 +10,4 @@
   "config_flow": true,
   "homeassistant": "2025.3.4"
 }
+
