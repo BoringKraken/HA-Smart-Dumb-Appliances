@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -35,37 +35,29 @@ from .const import (
     ATTR_END_TIME,
     ATTR_USE_COUNT,
 )
+from .coordinator import SmartDumbApplianceCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Smart Dumb Appliance binary sensor."""
-    # Create a coordinator for the binary sensor
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name=f"{entry.data.get('device_name', 'Smart Dumb Appliance')}_binary_coordinator",
-        update_method=async_update_data,  # Use the async update method
-        update_interval=timedelta(seconds=1),
-    )
-    
-    # Create and add the binary sensor
-    async_add_entities([SmartDumbApplianceBinarySensor(hass, entry, coordinator)])
-    
-    # Start the coordinator
-    await coordinator.async_config_entry_first_refresh()
+    """Set up the Smart Dumb Appliance binary sensor from a config entry."""
+    # Get the configuration data
+    config = config_entry.data
+    device_name = config[CONF_DEVICE_NAME]
 
-async def async_update_data() -> dict:
-    """Fetch data from the power sensor."""
-    return {"last_update": datetime.now()}
+    # Get the coordinator from hass.data
+    coordinator = hass.data["smart_dumb_appliance"][config_entry.entry_id]
+
+    # Create and add the binary sensor
+    async_add_entities([SmartDumbApplianceBinarySensor(hass, config_entry, coordinator)])
 
 class SmartDumbApplianceBinarySensor(BinarySensorEntity):
     """
-    Representation of a Smart Dumb Appliance binary sensor.
+    Binary sensor for tracking if an appliance is running.
     
     This binary sensor indicates whether an appliance is currently running
     based on its power consumption. It provides:
@@ -73,73 +65,50 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
     - Current power usage
     - Last update timestamp
     - Start/End times of operation
-    - Usage count
+    - Power sensor configuration
     """
 
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: DataUpdateCoordinator) -> None:
-        """Initialize the binary sensor."""
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        coordinator: SmartDumbApplianceCoordinator,
+    ) -> None:
+        """
+        Initialize the binary sensor.
+        
+        Args:
+            hass: The Home Assistant instance
+            config_entry: The configuration entry containing all settings
+            coordinator: The update coordinator for managing updates
+        """
         self.hass = hass
         self.config_entry = config_entry
         self.coordinator = coordinator
-        self._attr_name = config_entry.data.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
-        self._attr_unique_id = f"{config_entry.entry_id}"
+        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Power State"
+        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_power_state"
+        self._attr_device_class = BinarySensorDeviceClass.POWER
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "power_state"
         
-        # Load configuration
-        self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
-        self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-        self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
-        
-        # Initialize state tracking
-        self._last_update = None
-        self._last_power = 0.0
-        self._start_time = None
-        self._end_time = None
-        self._use_count = 0
-        self._was_on = False
-        self._attr_is_on = False
-        
-        # Set device class and icon
-        self._attr_device_class = "running"
-        self._attr_icon = "mdi:washing-machine"  # Default icon, will be updated based on appliance type
-
-        # Get initial power reading
-        try:
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is not None:
-                self._last_power = float(power_state.state)
-        except (ValueError, TypeError):
-            _LOGGER.warning("Could not get initial power reading from %s", self._power_sensor)
-
-        # Log initialization with sensor type
-        _LOGGER.info(
-            "Initializing %s (Binary) with power sensor %s (current: %.1fW, start: %.1fW, stop: %.1fW)",
-            self._attr_name,
-            self._power_sensor,
-            self._last_power,
-            self._start_watts,
-            self._stop_watts
-        )
+        # Define all possible attributes that this sensor can have
+        self._attr_extra_state_attributes = {
+            # Current state
+            "power_usage": 0.0,
+            
+            # Timing information
+            "last_update": None,
+            "start_time": None,
+            "end_time": None,
+            
+            # Configuration
+            "power_sensor": config_entry.data[CONF_POWER_SENSOR],
+        }
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """
-        Return entity specific state attributes.
-        
-        Returns:
-            dict: A dictionary containing all the sensor's attributes
-        """
-        return {
-            ATTR_POWER_USAGE: self._last_power,
-            ATTR_LAST_UPDATE: self._last_update,
-            ATTR_START_TIME: self._start_time,
-            ATTR_END_TIME: self._end_time,
-            ATTR_USE_COUNT: self._use_count,
-            "power_sensor": self._power_sensor,
-            "start_watts": self._start_watts,
-            "stop_watts": self._stop_watts,
-            "debounce": self._debounce,
-        }
+    def should_poll(self) -> bool:
+        """Return False as we use the coordinator for updates."""
+        return False
 
     async def async_update(self) -> None:
         """
@@ -147,51 +116,47 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         
         This method is called by the coordinator to update the sensor's state
         and attributes. It:
-        1. Gets the current power reading
-        2. Updates the last update timestamp
-        3. Determines if the appliance is running
-        4. Tracks start/end times and usage count
-        5. Logs state changes for debugging
+        1. Gets the latest data from the coordinator
+        2. Updates the binary state (on/off)
+        3. Updates all relevant attributes
+        4. Logs state changes for debugging
         """
         try:
-            # Get current power reading
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
+            # Wait for the coordinator to update
+            await self.coordinator.async_request_refresh()
+            
+            # Get the latest data from the coordinator
+            data = self.coordinator.data
+            if data is None:
+                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
                 return
 
-            current_power = float(power_state.state)
-            self._last_power = current_power
-            self._last_update = datetime.now()
-
-            # Determine if the appliance is running
-            is_on = self._start_watts <= current_power <= self._stop_watts
+            # Update the binary state
+            self._attr_is_on = data.is_running
             
-            # Track state changes
-            if is_on and not self._was_on:
-                self._start_time = self._last_update
-                self._end_time = None
-                _LOGGER.debug(
-                    "%s turned on (current: %.1fW, start: %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._start_watts
-                )
-            elif not is_on and self._was_on:
-                self._end_time = self._last_update
-                self._use_count += 1
-                _LOGGER.debug(
-                    "%s turned off (current: %.1fW, stop: %.1fW, Duration: %s, Total uses: %d)",
-                    self._attr_name,
-                    current_power,
-                    self._stop_watts,
-                    self._end_time - self._start_time if self._start_time else "unknown",
-                    self._use_count
-                )
+            # Update all attributes with the latest values
+            self._attr_extra_state_attributes.update({
+                # Current state
+                "power_usage": data.power_state,
+                
+                # Timing information
+                "last_update": data.last_update,
+                "start_time": data.start_time,
+                "end_time": data.end_time,
+            })
             
-            self._was_on = is_on
-            self._attr_is_on = is_on
+            # Log the update for debugging
+            _LOGGER.debug(
+                "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
+                self._attr_name,
+                "on" if data.is_running else "off",
+                data.power_state,
+                data.last_update
+            )
 
-        except (ValueError, TypeError) as err:
-            _LOGGER.error("Error updating binary sensor: %s", err)
-            return 
+        except Exception as err:
+            _LOGGER.error(
+                "Error updating binary sensor %s: %s",
+                self._attr_name,
+                err
+            ) 

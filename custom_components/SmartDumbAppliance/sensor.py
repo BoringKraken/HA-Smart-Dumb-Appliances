@@ -19,7 +19,6 @@ from io import BytesIO
 from PIL import Image, ImageDraw
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -298,7 +297,6 @@ async def async_setup_entry(
     entities = [
         SmartDumbApplianceCumulativeEnergySensor(hass, config_entry, coordinator),
         SmartDumbApplianceCurrentPowerSensor(hass, config_entry, coordinator),
-        SmartDumbApplianceBinarySensor(hass, config_entry, coordinator),
         SmartDumbApplianceServiceSensor(hass, config_entry, coordinator),
     ]
     
@@ -533,126 +531,10 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase, SensorEntity)
         
         This method is called by the coordinator to update the sensor's state
         and attributes. It ensures that:
-        1. The current power reading is fetched directly from the power sensor
+        1. The coordinator's data is up to date
         2. The sensor state and attributes are updated
         3. The icon and color are updated based on the power state
         4. Debug logging is performed for troubleshooting
-        """
-        try:
-            # Get current power reading
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found for %s", self._power_sensor, self._attr_name)
-                return
-
-            current_power = float(power_state.state)
-            self._last_power = current_power
-            self._last_update = dt_util.utcnow()
-
-            # Determine if the appliance is running
-            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
-            
-            # Update the main power value
-            self._attr_native_value = current_power
-            self._attr_available = True
-
-            # Update all attributes with the latest values
-            self._attr_extra_state_attributes.update({
-                # Current state
-                "is_running": is_on,
-                "power_usage": current_power,
-                
-                # Timing information
-                "last_update": self._last_update,
-            })
-            
-            # Log the update for debugging
-            _LOGGER.debug(
-                "Updated current power sensor for %s: %.1fW (current: %.1fW, running: %s, last_update: %s)",
-                self._attr_name,
-                current_power,
-                current_power,
-                is_on,
-                self._last_update
-            )
-
-            # Update the icon and color based on power state
-            self._update_icon_and_color("on" if is_on else "off")
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error(
-                "Error reading power sensor %s for %s: %s",
-                self._power_sensor,
-                self._attr_name,
-                err
-            )
-        except Exception as err:
-            _LOGGER.error(
-                "Unexpected error updating %s: %s",
-                self._attr_name,
-                err
-            )
-
-class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
-    """
-    Binary sensor for tracking if an appliance is running.
-    
-    This binary sensor indicates whether an appliance is currently running
-    based on its power consumption. It provides:
-    - On/Off state based on power thresholds
-    - Current power usage
-    - Last update timestamp
-    - Start/End times of operation
-    - Power sensor configuration
-    """
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        config_entry: ConfigEntry,
-        coordinator: SmartDumbApplianceCoordinator,
-    ) -> None:
-        """
-        Initialize the binary sensor.
-        
-        Args:
-            hass: The Home Assistant instance
-            config_entry: The configuration entry containing all settings
-            coordinator: The update coordinator for managing updates
-        """
-        super().__init__(hass, config_entry, coordinator)
-        self._attr_name = f"{self._attr_name} Power State"
-        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_power_state"
-        self._attr_device_class = BinarySensorDeviceClass.POWER
-        self._attr_icon = get_appliance_icon(self._attr_name)
-        self._attr_has_entity_name = True
-        self._attr_translation_key = "power_state"
-        
-        # Define all possible attributes that this sensor can have
-        self._attr_extra_state_attributes = {
-            # Current state
-            "power_usage": 0.0,
-            
-            # Timing information
-            "last_update": None,
-            "start_time": None,
-            "end_time": None,
-            
-            # Configuration
-            "power_sensor": self._power_sensor,
-        }
-
-    async def async_update(self) -> None:
-        """
-        Update the binary sensor state.
-        
-        This method is called by the coordinator to update the sensor's state
-        and attributes. It:
-        1. Gets the latest data from the coordinator
-        2. Updates the binary state (on/off)
-        3. Updates all relevant attributes
-        4. Logs state changes for debugging
-        5. Updates the icon and color based on state
         """
         try:
             # Wait for the coordinator to update
@@ -664,35 +546,35 @@ class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity)
                 _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
                 return
 
-            # Update the binary state
-            self._attr_is_on = data.is_running
-            
+            # Update the main power value
+            self._attr_native_value = data.power_state
+            self._attr_available = True
+
             # Update all attributes with the latest values
             self._attr_extra_state_attributes.update({
                 # Current state
+                "is_running": data.is_running,
                 "power_usage": data.power_state,
                 
                 # Timing information
                 "last_update": data.last_update,
-                "start_time": data.start_time,
-                "end_time": data.end_time,
             })
             
             # Log the update for debugging
             _LOGGER.debug(
-                "Updated binary sensor for %s: %s (current: %.1fW, last_update: %s)",
+                "Updated current power sensor for %s: %.1fW (running: %s, last_update: %s)",
                 self._attr_name,
-                "on" if data.is_running else "off",
                 data.power_state,
+                data.is_running,
                 data.last_update
             )
 
-            # Update icon and color based on power state
+            # Update the icon and color based on power state
             self._update_icon_and_color("on" if data.is_running else "off")
 
         except Exception as err:
             _LOGGER.error(
-                "Error updating binary sensor %s: %s",
+                "Error updating current power sensor %s: %s",
                 self._attr_name,
                 err
             )

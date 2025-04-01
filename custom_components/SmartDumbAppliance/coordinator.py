@@ -107,7 +107,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 duration = (last_update - self._start_time).total_seconds() / 3600  # Convert to hours
                 self._cycle_energy = (current_power * duration) / 1000  # Convert to kWh
 
-            return ApplianceData(
+            # Create and return the data object
+            data = ApplianceData(
                 last_update=last_update,
                 power_state=current_power,
                 is_running=is_on,
@@ -117,6 +118,17 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 cycle_energy=self._cycle_energy,
                 cycle_cost=self._cycle_cost,
             )
+
+            # Log the update
+            _LOGGER.debug(
+                "Coordinator updated: %.1fW (running: %s, use count: %d, cycle energy: %.3f kWh)",
+                current_power,
+                is_on,
+                self._use_count,
+                self._cycle_energy
+            )
+
+            return data
 
         except (ValueError, TypeError) as err:
             _LOGGER.error("Error reading power sensor %s: %s", self._power_sensor, err)

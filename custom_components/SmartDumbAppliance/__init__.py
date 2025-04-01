@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import Platform
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from datetime import timedelta
 
 from .const import (
     DOMAIN,
@@ -51,7 +52,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Smart Dumb Appliance from a ConfigEntry."""
+    """Set up Smart Dumb Appliance from a config entry."""
     _LOGGER.info("Setting up entry: %s", entry.entry_id)
     
     # Create the coordinator
@@ -63,16 +64,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Set up the platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Start the coordinator
+    await coordinator.async_config_entry_first_refresh()
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload Smart Dumb Appliance ConfigEntry."""
+    """Unload a config entry."""
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
     
     # Unload platforms
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
-    if unload_ok and entry.entry_id in hass.data[DOMAIN]:
-        del hass.data[DOMAIN][entry.entry_id]
-    
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
