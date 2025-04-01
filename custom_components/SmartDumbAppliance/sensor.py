@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
@@ -49,6 +49,7 @@ from .const import (
     ATTR_NEXT_SERVICE,
     ATTR_SERVICE_MESSAGE,
     CONF_DEVICE_NAME,
+    DOMAIN,
 )
 from .coordinator import SmartDumbApplianceCoordinator
 
@@ -291,7 +292,8 @@ async def async_setup_entry(
     device_name = config[CONF_DEVICE_NAME]
 
     # Get the coordinator from hass.data
-    coordinator = hass.data["smart_dumb_appliance"][config_entry.entry_id]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    _LOGGER.debug("Got coordinator from hass.data[%s][%s]: %s", DOMAIN, config_entry.entry_id, coordinator)
 
     # Create and add the sensors
     entities = [
@@ -307,11 +309,12 @@ class SmartDumbApplianceBase(SensorEntity):
     
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, coordinator: SmartDumbApplianceCoordinator) -> None:
         """Initialize the base sensor."""
+        super().__init__()
         self.hass = hass
         self.config_entry = config_entry
         self.coordinator = coordinator
         self._attr_name = config_entry.data.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
-        self._attr_unique_id = f"{config_entry.entry_id}"
+        self._attr_unique_id = f"{config_entry.entry_id}_{self.__class__.__name__.lower()}"
         
         # Load configuration
         self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
@@ -365,11 +368,19 @@ class SmartDumbApplianceBase(SensorEntity):
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self.coordinator.async_add_listener(self.async_write_ha_state)
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
+        
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        _LOGGER.debug("%s: Handling coordinator update with data: %s", self._attr_name, self.coordinator.data)
+        self.async_write_ha_state()
 
     async def async_update(self) -> None:
         """Update the sensor state."""
+        await self.coordinator.async_request_refresh()
+
         if not self.coordinator.last_update_success:
             _LOGGER.debug(
                 "Sensor %s update skipped - coordinator update not successful",

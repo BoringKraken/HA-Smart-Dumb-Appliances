@@ -123,7 +123,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 self._cycle_energy = (current_power * duration) / 1000  # Convert to kWh
 
             # Create and return the data object
-            return ApplianceData(
+            data = ApplianceData(
                 last_update=last_update,
                 power_state=current_power,
                 is_running=is_on,
@@ -133,6 +133,9 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 cycle_energy=self._cycle_energy,
                 cycle_cost=self._cycle_cost,
             )
+            
+            _LOGGER.debug("Generated new data: %s", data)
+            return data
 
         except (ValueError, TypeError) as err:
             _LOGGER.error("Error reading power sensor %s: %s", self._power_sensor, err)
@@ -167,7 +170,17 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             old_state.state if old_state else "None",
             new_state.state
         )
-        self.async_set_updated_data(self._async_update_data())
+        
+        # Update data synchronously first
+        try:
+            data = self._async_update_data()
+            self.data = data
+            _LOGGER.debug("Updated coordinator data: %s", data)
+            self.async_set_updated_data(data)
+        except Exception as err:
+            _LOGGER.error("Error updating data: %s", err)
+            self.last_update_success = False
+            self.async_update_listeners()
 
     async def async_update_data(self) -> ApplianceData:
         """
