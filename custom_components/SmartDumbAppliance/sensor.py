@@ -437,119 +437,30 @@ class SmartDumbApplianceBase:
         await self.coordinator.async_request_refresh()
         
         try:
-            # Get current power reading
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found for %s", self._power_sensor, self._attr_name)
+            # Get the latest data from the coordinator
+            data = self.coordinator.data
+            if data is None:
+                _LOGGER.warning("No data available from coordinator for %s", self._attr_name)
                 return
 
-            current_power = float(power_state.state)
+            # Update the sensor state from coordinator data
+            self._last_update = data.get("last_update")
+            self._last_power = data.get("power_state", 0.0)
+            self._was_on = data.get("is_running", False)
+
+            # Log the update
             _LOGGER.debug(
                 "Power reading for %s: %.1fW (current: %.1fW, start: %.1fW, stop: %.1fW)",
                 self._attr_name,
-                current_power,
-                current_power,
+                self._last_power,
+                self._last_power,
                 self._start_watts,
                 self._stop_watts
             )
 
-            # Update last power and timestamp
-            self._last_power = current_power
-            self._last_update = dt_util.utcnow()
-
-            # Update coordinator data
-            self.coordinator.data.update({
-                "power_state": current_power,
-                "is_running": current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
-            })
-
-            # Log threshold crossings
-            if current_power > self._start_watts and not self._was_on:
-                _LOGGER.debug(
-                    "%s crossed start threshold (current: %.1fW, start: %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._start_watts
-                )
-            elif current_power < self._stop_watts and self._was_on:
-                _LOGGER.debug(
-                    "%s crossed stop threshold (current: %.1fW, stop: %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._stop_watts
-                )
-
-            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
-            
-            if is_on and not self._was_on:
-                self._start_time = self._last_update
-                self._end_time = None
-                self._cycle_energy = 0.0
-                self._cycle_cost = 0.0
-                _LOGGER.info(
-                    "%s turned on (current: %.1fW, start: %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._start_watts
-                )
-            elif not is_on and self._was_on:
-                self._end_time = self._last_update
-                self._use_count += 1
-                duration = self._end_time - self._start_time if self._start_time else "unknown"
-                
-                _LOGGER.info(
-                    "%s turned off - Cycle Summary:\n"
-                    "  Duration: %s\n"
-                    "  Energy Used: %.3f kWh\n"
-                    "  Cost: %.2f\n"
-                    "  Average Power: %.1fW\n"
-                    "  Total Uses: %d",
-                    self._attr_name,
-                    duration,
-                    self._cycle_energy,
-                    self._cycle_cost,
-                    (self._cycle_energy * 3600000) / duration.total_seconds() if isinstance(duration, timedelta) else 0,
-                    self._use_count
-                )
-                
-                if self._service_reminder and self._use_count >= self._service_reminder_count:
-                    self._last_service = self._next_service or self._last_update
-                    self._next_service = self._last_update + timedelta(days=1)
-                    _LOGGER.info(
-                        "Service reminder for %s: %s (Use count: %d/%d)",
-                        self._attr_name,
-                        self._service_reminder_message,
-                        self._use_count,
-                        self._service_reminder_count
-                    )
-            
-            self._was_on = is_on
-
-            if is_on and self._start_time is not None:
-                delta = (self._last_update - self._start_time).total_seconds()
-                if delta > self._debounce:
-                    energy = (current_power * delta) / 3600000
-                    self._total_energy += energy
-                    self._cycle_energy += energy
-
-                    if self._cost_sensor:
-                        cost_state = self.hass.states.get(self._cost_sensor)
-                        if cost_state is not None:
-                            cost_per_kwh = float(cost_state.state)
-                            cycle_cost = energy * cost_per_kwh
-                            self._total_cost += cycle_cost
-                            self._cycle_cost += cycle_cost
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error(
-                "Error reading power sensor %s for %s: %s",
-                self._power_sensor,
-                self._attr_name,
-                err
-            )
         except Exception as err:
             _LOGGER.error(
-                "Unexpected error updating %s: %s",
+                "Error updating %s: %s",
                 self._attr_name,
                 err
             )
