@@ -290,8 +290,8 @@ async def async_setup_entry(
     config = config_entry.data
     device_name = config[CONF_DEVICE_NAME]
 
-    # Create the coordinator
-    coordinator = SmartDumbApplianceCoordinator(hass, config_entry)
+    # Get the coordinator from hass.data
+    coordinator = hass.data["smart_dumb_appliance"][config_entry.entry_id]
 
     # Create and add the sensors
     entities = [
