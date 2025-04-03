@@ -16,7 +16,7 @@ from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -140,11 +140,12 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self.coordinator.async_add_listener(self.async_write_ha_state)
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
 
-    async def async_update(self) -> None:
-        """Update the binary sensor state."""
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
         if not self.coordinator.last_update_success:
             _LOGGER.debug(
                 "Binary sensor %s update skipped - coordinator update not successful",
@@ -172,7 +173,14 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
             data.use_count
         )
 
-        # Update the state
+        # Update the state using _update_entity_state
+        self._update_entity_state(data)
+        
+        # Write state to HA
+        self.async_write_ha_state()
+
+    def _update_entity_state(self, data: Any) -> None:
+        """Update entity state from coordinator data."""
         old_state = self._attr_is_on
         self._attr_is_on = data.is_running
         

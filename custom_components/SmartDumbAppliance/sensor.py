@@ -461,7 +461,7 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
 
     def _update_entity_state(self, data: Any) -> None:
         """Update entity state from coordinator data."""
-        self._attr_native_value = data.power_state
+        self._attr_native_value = data.cycle_energy
         self._attr_extra_state_attributes.update({
             "total_cost": data.cycle_cost,
             "last_update": data.last_update,
@@ -571,28 +571,15 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             "cycle_cost": 0.0,
         }
 
-    async def async_update(self) -> None:
-        """
-        Update the service sensor state.
-        
-        This method is called by the coordinator to update the sensor's state
-        and attributes. It:
-        1. Gets the latest state from the base class
-        2. Updates all service-related attributes
-        3. Determines the current service status
-        4. Updates the icon and color based on status
-        5. Logs state changes for debugging
-        """
-        # First update the base class to get the latest state
-        await super().async_update()
-        
+    def _update_entity_state(self, data: Any) -> None:
+        """Update entity state from coordinator data."""
         # Update all attributes with the latest values
         self._attr_extra_state_attributes.update({
             # Timing information
-            "last_update": self._last_update,
+            "last_update": data.last_update,
             
             # Usage tracking
-            "use_count": self._use_count,
+            "use_count": data.use_count,
             
             # Service information
             "last_service": self._last_service,
@@ -604,16 +591,16 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             "service_reminder_message": self._service_reminder_message if self._service_reminder else None,
             
             # Current state
-            "is_running": self._was_on,
-            "cycle_energy": self._cycle_energy,
-            "cycle_cost": self._cycle_cost,
+            "is_running": data.is_running,
+            "cycle_energy": data.cycle_energy,
+            "cycle_cost": data.cycle_cost,
         })
         
         # Determine the current service status
         if not self._service_reminder:
             self._attr_native_value = "disabled"
             self._update_icon_and_color("disabled")
-        elif self._use_count >= self._service_reminder_count:
+        elif data.use_count >= self._service_reminder_count:
             self._attr_native_value = "needs_service"
             self._update_icon_and_color("needs_service")
         else:
@@ -625,11 +612,11 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             "Updated service sensor for %s: %s (current: %.1fW, use count: %d/%d, last_update: %s, running: %s, cycle energy: %.3f kWh, cycle cost: %.2f)",
             self._attr_name,
             self._attr_native_value,
-            self._last_power,
-            self._use_count,
+            data.power_state,
+            data.use_count,
             self._service_reminder_count,
-            self._last_update,
-            self._was_on,
-            self._cycle_energy,
-            self._cycle_cost
+            data.last_update,
+            data.is_running,
+            data.cycle_energy,
+            data.cycle_cost
         ) 
