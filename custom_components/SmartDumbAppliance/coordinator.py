@@ -49,6 +49,36 @@ class ApplianceData:
     service_reminder_count: int  # Number of cycles until service is needed
     remaining_cycles: int  # Number of cycles remaining until service is needed
 
+    @property
+    def formatted_last_update(self) -> str | None:
+        """Return formatted last_update."""
+        return self.last_update.isoformat() if self.last_update else None
+
+    @property
+    def formatted_start_time(self) -> str | None:
+        """Return formatted start_time."""
+        return self.start_time.isoformat() if self.start_time else None
+
+    @property
+    def formatted_end_time(self) -> str | None:
+        """Return formatted end_time."""
+        return self.end_time.isoformat() if self.end_time else None
+
+    @property
+    def formatted_cycle_duration(self) -> str:
+        """Return formatted cycle_duration."""
+        return str(self.cycle_duration) if self.cycle_duration else "0:00:00"
+
+    @property
+    def formatted_last_cycle_duration(self) -> str:
+        """Return formatted last_cycle_duration."""
+        return str(self.last_cycle_duration) if self.last_cycle_duration else "0:00:00"
+
+    @property
+    def formatted_total_duration(self) -> str:
+        """Return formatted total_duration."""
+        return str(self.total_duration) if self.total_duration else "0:00:00"
+
 class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
     """Coordinator for Smart Dumb Appliance data."""
 
