@@ -44,13 +44,7 @@ Attributes:
 
 ### 3. Cumulative Energy Sensor
 Attributes:
-- Total energy consumption all time (kWh)
-- Total energy consumption for the day (kWh)
-- Total energy consumption for the month (kWh)
 - Total energy consumption for the Cycle (kWh)
-- Total cost all time ($0.00)
-- Total cost for the day ($0.00)
-- Total cost for the month ($0.00)
 - Total cost for the Cycle  ($0.00)
 - Cycle Start time
 - Cycle End time
