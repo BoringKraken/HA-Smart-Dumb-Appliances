@@ -444,7 +444,7 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         """Initialize the cumulative energy sensor."""
         super().__init__(hass, config_entry, coordinator)
         self._attr_name = f"{self._attr_name} Cumulative Energy"
-        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_cumulative_energy"
+        self._attr_unique_id = f"{config_entry.entry_id}_cumulative_energy"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -459,15 +459,14 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         self._attr_has_entity_name = True
         self._attr_translation_key = "cumulative_energy"
 
-    async def async_update(self) -> None:
-        """Update the cumulative energy sensor state."""
-        await super().async_update()
-        self._attr_native_value = self._total_energy
+    def _update_entity_state(self, data: Any) -> None:
+        """Update entity state from coordinator data."""
+        self._attr_native_value = data.power_state
         self._attr_extra_state_attributes.update({
-            "total_cost": self._total_cost,
-            "last_update": self._last_update,
-            "start_time": self._start_time,
-            "end_time": self._end_time,
+            "total_cost": data.cycle_cost,
+            "last_update": data.last_update,
+            "start_time": data.start_time,
+            "end_time": data.end_time,
         })
 
 class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
