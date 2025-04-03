@@ -101,6 +101,7 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self._attr_extra_state_attributes = {
             # Current state
             "power_usage": 0.0,
+            "power_kw": 0.0,
             
             # Timing information
             "last_update": None,
@@ -163,10 +164,11 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
 
         # Log the incoming data
         _LOGGER.debug(
-            "Binary sensor %s received update - Power: %.1fW, Running: %s, "
+            "Binary sensor %s received update - Power: %.1fW (%.3f kW), Running: %s, "
             "Start time: %s, End time: %s, Use count: %d",
             self._attr_name,
             data.power_state,
+            data.power_kw,
             data.is_running,
             data.start_time,
             data.end_time,
@@ -187,6 +189,7 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         # Update attributes
         self._attr_extra_state_attributes.update({
             ATTR_POWER_USAGE: data.power_state,
+            "power_kw": data.power_kw,
             ATTR_LAST_UPDATE: data.last_update,
             ATTR_START_TIME: data.start_time,
             ATTR_END_TIME: data.end_time,
@@ -196,16 +199,18 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         # Log state change if it occurred
         if old_state != self._attr_is_on:
             _LOGGER.debug(
-                "Binary sensor %s state changed - Old: %s, New: %s, Power: %.1fW",
+                "Binary sensor %s state changed - Old: %s, New: %s, Power: %.1fW (%.3f kW)",
                 self._attr_name,
                 old_state,
                 self._attr_is_on,
-                data.power_state
+                data.power_state,
+                data.power_kw
             )
         else:
             _LOGGER.debug(
-                "Binary sensor %s state unchanged - State: %s, Power: %.1fW",
+                "Binary sensor %s state unchanged - State: %s, Power: %.1fW (%.3f kW)",
                 self._attr_name,
                 self._attr_is_on,
-                data.power_state
+                data.power_state,
+                data.power_kw
             ) 

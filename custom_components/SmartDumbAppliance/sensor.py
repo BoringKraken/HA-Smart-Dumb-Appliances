@@ -451,6 +451,9 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_available = True
         self._attr_extra_state_attributes = {
+            "cycle_energy": 0.0,
+            "total_energy": 0.0,
+            "cycle_cost": 0.0,
             "total_cost": 0.0,
             "last_update": None,
             "start_time": None,
@@ -461,13 +464,27 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
 
     def _update_entity_state(self, data: Any) -> None:
         """Update entity state from coordinator data."""
-        self._attr_native_value = data.cycle_energy
+        self._attr_native_value = data.total_energy
         self._attr_extra_state_attributes.update({
-            "total_cost": data.cycle_cost,
+            "cycle_energy": data.cycle_energy,
+            "total_energy": data.total_energy,
+            "cycle_cost": data.cycle_cost,
+            "total_cost": data.total_cost,
             "last_update": data.last_update,
             "start_time": data.start_time,
             "end_time": data.end_time,
         })
+        
+        # Log the update
+        _LOGGER.debug(
+            "Updated cumulative energy sensor for %s - Cycle: %.3f kWh, Total: %.3f kWh, "
+            "Cycle cost: $%.2f, Total cost: $%.2f",
+            self._attr_name,
+            data.cycle_energy,
+            data.total_energy,
+            data.cycle_cost,
+            data.total_cost
+        )
 
 class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
     """Sensor for tracking current power usage and thresholds."""
@@ -490,6 +507,7 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
         
         # Define all possible attributes
         self._attr_extra_state_attributes = {
+            "power_kw": 0.0,
             "start_watts": self._start_watts,
             "stop_watts": self._stop_watts,
             "debounce": self._debounce,
@@ -506,11 +524,21 @@ class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
         """Update entity state from coordinator data."""
         self._attr_native_value = data.power_state
         self._attr_extra_state_attributes.update({
+            "power_kw": data.power_kw,
             "is_running": data.is_running,
             "power_usage": data.power_state,
             "last_update": data.last_update,
         })
         self._update_icon_and_color("on" if data.is_running else "off")
+        
+        # Log the update
+        _LOGGER.debug(
+            "Updated current power sensor for %s - Power: %.1fW (%.3f kW), Running: %s",
+            self._attr_name,
+            data.power_state,
+            data.power_kw,
+            data.is_running
+        )
 
 class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
     """
@@ -568,7 +596,9 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             # Current state
             "is_running": False,
             "cycle_energy": 0.0,
+            "total_energy": 0.0,
             "cycle_cost": 0.0,
+            "total_cost": 0.0,
         }
 
     def _update_entity_state(self, data: Any) -> None:
@@ -593,7 +623,9 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             # Current state
             "is_running": data.is_running,
             "cycle_energy": data.cycle_energy,
+            "total_energy": data.total_energy,
             "cycle_cost": data.cycle_cost,
+            "total_cost": data.total_cost,
         })
         
         # Determine the current service status
@@ -609,7 +641,8 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             
         # Log the update for debugging
         _LOGGER.debug(
-            "Updated service sensor for %s: %s (current: %.1fW, use count: %d/%d, last_update: %s, running: %s, cycle energy: %.3f kWh, cycle cost: %.2f)",
+            "Updated service sensor for %s: %s (current: %.1fW, use count: %d/%d, last_update: %s, running: %s, "
+            "cycle energy: %.3f kWh, total energy: %.3f kWh, cycle cost: $%.2f, total cost: $%.2f)",
             self._attr_name,
             self._attr_native_value,
             data.power_state,
@@ -618,5 +651,7 @@ class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
             data.last_update,
             data.is_running,
             data.cycle_energy,
-            data.cycle_cost
+            data.total_energy,
+            data.cycle_cost,
+            data.total_cost
         ) 

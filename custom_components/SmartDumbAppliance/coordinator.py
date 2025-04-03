@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -12,6 +12,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_POWER_SENSOR,
+    CONF_COST_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
     DEFAULT_START_WATTS,
@@ -24,13 +25,18 @@ _LOGGER = logging.getLogger(__name__)
 class ApplianceData:
     """Class to hold appliance data."""
     last_update: datetime
-    power_state: float
+    power_state: float  # Current power in watts
+    power_kw: float    # Current power in kilowatts
     is_running: bool
     start_time: datetime | None
     end_time: datetime | None
     use_count: int
-    cycle_energy: float
-    cycle_cost: float
+    cycle_energy: float  # Energy used in current cycle (kWh)
+    total_energy: float  # Total energy used (kWh)
+    cycle_cost: float   # Cost of current cycle
+    total_cost: float   # Total cost
+    last_power: float   # Previous power reading for trapezoidal integration
+    last_power_time: datetime | None  # Timestamp of previous power reading
 
 class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
     """Coordinator for Smart Dumb Appliance data."""
@@ -47,6 +53,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         
         self.config_entry = config_entry
         self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
+        self._cost_sensor = config_entry.data.get(CONF_COST_SENSOR)
         self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
         self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
         
@@ -55,12 +62,61 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._end_time = None
         self._use_count = 0
         self._cycle_energy = 0.0
+        self._total_energy = 0.0
         self._cycle_cost = 0.0
+        self._total_cost = 0.0
         self._was_on = False
+        self._last_power = 0.0
+        self._last_power_time = None
         self.data = None
 
         # Store the unsubscribe callback
         self._unsubscribe = None
+
+    def _calculate_interval_energy(self, current_power: float, current_time: datetime) -> float:
+        """
+        Calculate energy used in the interval using trapezoidal integration.
+        
+        Args:
+            current_power: Current power reading in watts
+            current_time: Current timestamp
+            
+        Returns:
+            float: Energy used in the interval in kWh
+        """
+        if self._last_power_time is None:
+            self._last_power = current_power
+            self._last_power_time = current_time
+            return 0.0
+            
+        # Calculate time difference in hours
+        time_diff = (current_time - self._last_power_time).total_seconds() / 3600
+        
+        # Use trapezoidal integration: area = (a + b)h/2
+        # Convert watts to kilowatts by dividing by 1000
+        interval_energy = (self._last_power + current_power) * time_diff / (2 * 1000)
+        
+        # Update last values for next calculation
+        self._last_power = current_power
+        self._last_power_time = current_time
+        
+        return interval_energy
+
+    def _get_current_cost_rate(self) -> Optional[float]:
+        """Get the current cost per kWh from the cost sensor."""
+        if not self._cost_sensor:
+            return None
+            
+        cost_state = self.hass.states.get(self._cost_sensor)
+        if cost_state is None:
+            _LOGGER.warning("Cost sensor %s not found", self._cost_sensor)
+            return None
+            
+        try:
+            return float(cost_state.state)
+        except (ValueError, TypeError):
+            _LOGGER.warning("Invalid cost sensor state: %s", cost_state.state)
+            return None
 
     async def _async_update_data(self) -> ApplianceData:
         """Fetch data from the power sensor."""
@@ -72,20 +128,25 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed("Power sensor not found")
 
             current_power = float(power_state.state)
-            last_update = dt_util.utcnow()
+            current_time = dt_util.utcnow()
+            power_kw = current_power / 1000  # Convert to kilowatts
 
-            # Log all current state information
+            # Calculate energy used in this interval
+            interval_energy = self._calculate_interval_energy(current_power, current_time)
+            
+            # Get current cost rate
+            cost_rate = self._get_current_cost_rate()
+            
+            # Calculate interval cost if we have a rate
+            interval_cost = interval_energy * cost_rate if cost_rate is not None else 0.0
+
+            # Log current state
             _LOGGER.debug(
-                "Current state - Power: %.1fW, Start threshold: %.1fW, Stop threshold: %.1fW, "
-                "Was on: %s, Start time: %s, End time: %s, Use count: %d, Cycle energy: %.3f kWh",
+                "Current state - Power: %.1fW (%.3f kW), Interval energy: %.3f kWh, Cost rate: %s/kWh",
                 current_power,
-                self._start_watts,
-                self._stop_watts,
-                self._was_on,
-                self._start_time,
-                self._end_time,
-                self._use_count,
-                self._cycle_energy
+                power_kw,
+                interval_energy,
+                f"${cost_rate:.4f}" if cost_rate is not None else "unknown"
             )
 
             # Determine if the appliance is running
@@ -93,48 +154,65 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             
             # Track state changes
             if is_on and not self._was_on:
-                self._start_time = last_update
+                self._start_time = current_time
                 self._end_time = None
+                self._cycle_energy = 0.0
+                self._cycle_cost = 0.0
                 _LOGGER.debug(
-                    "Appliance turned on - Current: %.1fW, Start threshold: %.1fW, Start time: %s",
+                    "Appliance turned on - Current: %.1fW (%.3f kW), Start threshold: %.1fW",
                     current_power,
-                    self._start_watts,
-                    self._start_time
+                    power_kw,
+                    self._start_watts
                 )
             elif not is_on and self._was_on:
-                self._end_time = last_update
+                self._end_time = current_time
                 self._use_count += 1
-                duration = self._end_time - self._start_time if self._start_time else "unknown"
+                duration = self._end_time - self._start_time if self._start_time else timedelta(0)
                 _LOGGER.debug(
-                    "Appliance turned off - Current: %.1fW, Stop threshold: %.1fW, "
-                    "Duration: %s, Total uses: %d, End time: %s",
-                    current_power,
-                    self._stop_watts,
+                    "Appliance turned off - Duration: %s, Cycle energy: %.3f kWh, Cycle cost: $%.2f",
                     duration,
-                    self._use_count,
-                    self._end_time
+                    self._cycle_energy,
+                    self._cycle_cost
                 )
+            
+            # Update energy and cost tracking
+            if is_on or self._was_on:  # Track energy while running and for the final interval when turning off
+                self._cycle_energy += interval_energy
+                self._total_energy += interval_energy
+                self._cycle_cost += interval_cost
+                self._total_cost += interval_cost
             
             self._was_on = is_on
 
-            # Calculate cycle energy (if we have timing data)
-            if self._start_time and is_on:
-                duration = (last_update - self._start_time).total_seconds() / 3600  # Convert to hours
-                self._cycle_energy = (current_power * duration) / 1000  # Convert to kWh
-
             # Create and return the data object
             data = ApplianceData(
-                last_update=last_update,
+                last_update=current_time,
                 power_state=current_power,
+                power_kw=power_kw,
                 is_running=is_on,
                 start_time=self._start_time,
                 end_time=self._end_time,
                 use_count=self._use_count,
                 cycle_energy=self._cycle_energy,
+                total_energy=self._total_energy,
                 cycle_cost=self._cycle_cost,
+                total_cost=self._total_cost,
+                last_power=self._last_power,
+                last_power_time=self._last_power_time
             )
             
-            _LOGGER.debug("Generated new data: %s", data)
+            _LOGGER.debug(
+                "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle energy: %.3f kWh, "
+                "Total energy: %.3f kWh, Cycle cost: $%.2f, Total cost: $%.2f",
+                current_power,
+                power_kw,
+                is_on,
+                self._cycle_energy,
+                self._total_energy,
+                self._cycle_cost,
+                self._total_cost
+            )
+            
             return data
 
         except (ValueError, TypeError) as err:
@@ -200,98 +278,4 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         Returns:
             ApplianceData: The updated appliance data
         """
-        try:
-            # Get current power reading
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
-                raise UpdateFailed("Power sensor not found")
-
-            current_power = float(power_state.state)
-            last_update = dt_util.utcnow()
-
-            # Log all current state information
-            _LOGGER.debug(
-                "Current state - Power: %.1fW, Start threshold: %.1fW, Stop threshold: %.1fW, "
-                "Was on: %s, Start time: %s, End time: %s, Use count: %d, Cycle energy: %.3f kWh",
-                current_power,
-                self._start_watts,
-                self._stop_watts,
-                self._was_on,
-                self._start_time,
-                self._end_time,
-                self._use_count,
-                self._cycle_energy
-            )
-
-            # Determine if the appliance is running
-            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
-            
-            # Track state changes
-            if is_on and not self._was_on:
-                self._start_time = last_update
-                self._end_time = None
-                _LOGGER.debug(
-                    "Appliance turned on - Current: %.1fW, Start threshold: %.1fW, Start time: %s",
-                    current_power,
-                    self._start_watts,
-                    self._start_time
-                )
-            elif not is_on and self._was_on:
-                self._end_time = last_update
-                self._use_count += 1
-                duration = self._end_time - self._start_time if self._start_time else "unknown"
-                _LOGGER.debug(
-                    "Appliance turned off - Current: %.1fW, Stop threshold: %.1fW, "
-                    "Duration: %s, Total uses: %d, End time: %s",
-                    current_power,
-                    self._stop_watts,
-                    duration,
-                    self._use_count,
-                    self._end_time
-                )
-            
-            self._was_on = is_on
-
-            # Calculate cycle energy (if we have timing data)
-            if self._start_time and is_on:
-                duration = (last_update - self._start_time).total_seconds() / 3600  # Convert to hours
-                self._cycle_energy = (current_power * duration) / 1000  # Convert to kWh
-                _LOGGER.debug(
-                    "Cycle energy updated - Duration: %.2f hours, Power: %.1fW, Energy: %.3f kWh",
-                    duration,
-                    current_power,
-                    self._cycle_energy
-                )
-
-            # Create and return the data object
-            data = ApplianceData(
-                last_update=last_update,
-                power_state=current_power,
-                is_running=is_on,
-                start_time=self._start_time,
-                end_time=self._end_time,
-                use_count=self._use_count,
-                cycle_energy=self._cycle_energy,
-                cycle_cost=self._cycle_cost,
-            )
-
-            # Log the final update
-            _LOGGER.debug(
-                "Coordinator update complete - Power: %.1fW, Running: %s, Use count: %d, "
-                "Cycle energy: %.3f kWh, Last update: %s",
-                current_power,
-                is_on,
-                self._use_count,
-                self._cycle_energy,
-                last_update
-            )
-
-            return data
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error("Error reading power sensor %s: %s", self._power_sensor, err)
-            raise UpdateFailed(f"Error reading power sensor: {err}") from err
-        except Exception as err:
-            _LOGGER.error("Unexpected error updating data: %s", err)
-            raise UpdateFailed(f"Unexpected error: {err}") from err 
+        return await self._async_update_data() 

@@ -44,11 +44,15 @@ Attributes:
 
 ### 3. Cumulative Energy Sensor
 Attributes:
-- Total energy consumption for the Cycle (kWh)
-- Total cost for the Cycle  ($0.00)
+- Total energy consumption for the current Cycle (kWh)
+- Total energy consumption for the previous Cycle (kWh)
+- Total energy consumption for all Cycles (kWh)
+- Total cost for the current Cycle  ($0.00)
+- Total cost for the previous Cycle  ($0.00)
+- Total cost for all Cycles  ($0.00)
 - Cycle Start time
 - Cycle End time
-- Last update timestamp
+- Last update timestamps
 
 
 ### 4. Service Status Sensor
