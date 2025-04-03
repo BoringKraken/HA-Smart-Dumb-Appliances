@@ -26,44 +26,59 @@ The Smart Dumb Appliance integration is designed to monitor and track the energy
 
 ## Entities
 
-### 1. Current Power Sensor
+### 1. Binary Sensor (Cycle State)
 Attributes:
-- Current power reading (W)
-- Power thresholds (start/stop watts)
-- Running state
-- Power sensor configuration
+- Cycle state (On/Off) - Primary Attribute/Sensor
+- Current power reading (watts)
+- Cycle Start time (Date/Time)
+- Cycle End time (Date/Time)
+- Total Duration for the current Cycle (hh:mm:ss updates in Real-Time)
+- Total energy consumption for the current Cycle (0.000 kWh updates in Real-Time)
+- Total cost for the current Cycle  ($0.000 updates in Real-Time)
 - Last update timestamp
 
-### 2. Binary Sensor (Power State)
+### 2. Service Status Sensor
 Attributes:
-- On/Off state
-- Current power usage
-- Start/End times
-- Power sensor configuration
+- Service status (ok/needs_service/disabled) - Cycle state (On/Off) - Primary Attribute/Sensor
+- Cycle count (e.g. 5)
+- Service reminder enabled  (True/False)
+- Service reminder message (text)
+- Total Cycles till service (e.g. 20 (Previously Called - Service reminder count))
+- Remainding Cycles till Service (e.g. 15)
+- Current running state
 - Last update timestamp
 
-### 3. Cumulative Energy Sensor
+### 3. Current Power Sensor
 Attributes:
-- Total energy consumption for the current Cycle (kWh)
-- Total energy consumption for the previous Cycle (kWh)
-- Total energy consumption for all Cycles (kWh)
-- Total cost for the current Cycle  ($0.00)
-- Total cost for the previous Cycle  ($0.00)
-- Total cost for all Cycles  ($0.00)
-- Cycle Start time
-- Cycle End time
+- Current power reading (watts) - Cycle state (On/Off) - Primary Attribute/Sensor
+- Start Cycle Threshold (watts)
+- End Cycle Threshold (watts)
+- Start Cycle Threshold (watts)
+- Running state (True/False)
+- Power sensor entity (Friendly Name)
+- Last update timestamp (Date/Time)
+
+### 4. Cycle Duration Sensor
+Attributes:
+- Total Duration for the current Cycle (hh:mm:ss updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
+- Total Duration for the previous Cycle (hh:mm:ss)
+- Total Duration for all Cycles (hh:mm:ss)
 - Last update timestamps
 
-
-### 4. Service Status Sensor
+### 5. Cycle Energy Sensor
 Attributes:
-- Service status (ok/needs_service/disabled)
-- Usage count
-- Service reminder settings
-- Last/Next service dates
-- Current running state
-- Current cycle energy and cost
-- Last update timestamp
+- Total energy consumption for the current Cycle (0.000 kWh updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
+- Total energy consumption for the previous Cycle (kWh)
+- Total energy consumption for all Cycles (kWh)
+- Last update timestamps
+
+### 6. Cycle Cost Sensor
+Attributes:
+- Total cost for the current Cycle  ($0.000 updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
+- Total cost for the previous Cycle  ($0.00)
+- Total cost for all Cycles  ($0.00)
+- Last update timestamps
+
 
 ## Configuration Options
 

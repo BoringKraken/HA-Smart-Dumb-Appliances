@@ -437,6 +437,9 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
     - Total cost for all Cycles ($0.00)
     - Cycle Start time
     - Cycle End time
+    - Cycle Duration
+    - Last Cycle Duration
+    - Total Duration
     - Last update timestamps
     """
 
@@ -465,6 +468,9 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             "last_update": None,
             "start_time": None,
             "end_time": None,
+            "cycle_duration": None,
+            "last_cycle_duration": None,
+            "total_duration": timedelta(0),
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "cumulative_energy"
@@ -484,9 +490,12 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             self._last_cycle_end_time = data.end_time
             
             _LOGGER.debug(
-                "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f",
+                "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f, duration: %s, "
+                "total duration: %s",
                 self._previous_cycle_energy,
-                self._previous_cycle_cost
+                self._previous_cycle_cost,
+                data.last_cycle_duration,
+                data.total_duration
             )
         
         self._attr_native_value = data.total_energy
@@ -500,19 +509,26 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
             "last_update": data.last_update,
             "start_time": data.start_time,
             "end_time": data.end_time,
+            "cycle_duration": data.cycle_duration,
+            "last_cycle_duration": data.last_cycle_duration,
+            "total_duration": data.total_duration,
         })
         
         # Log the update
         _LOGGER.debug(
             "Updated cumulative energy sensor for %s - Current cycle: %.3f kWh, Previous cycle: %.3f kWh, "
-            "Total: %.3f kWh, Current cost: $%.2f, Previous cost: $%.2f, Total cost: $%.2f",
+            "Total: %.3f kWh, Current cost: $%.2f, Previous cost: $%.2f, Total cost: $%.2f, "
+            "Duration: %s, Last duration: %s, Total duration: %s",
             self._attr_name,
             data.cycle_energy,
             self._previous_cycle_energy,
             data.total_energy,
             data.cycle_cost,
             self._previous_cycle_cost,
-            data.total_cost
+            data.total_cost,
+            data.cycle_duration,
+            data.last_cycle_duration,
+            data.total_duration
         )
 
 class SmartDumbApplianceCurrentPowerSensor(SmartDumbApplianceBase):
