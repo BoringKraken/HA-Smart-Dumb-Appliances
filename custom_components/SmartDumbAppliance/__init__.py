@@ -44,10 +44,7 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.info("Smart Dumb Appliance integration is being loaded")
 
 # Define the platforms that this integration supports
-PLATFORMS = [
-    "binary_sensor",
-    "sensor",
-]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Smart Dumb Appliance integration."""
@@ -67,6 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Set up the coordinator
     await coordinator.async_setup()
+    await coordinator.async_config_entry_first_refresh()
     
     # Set up the platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -77,9 +75,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
     
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        await coordinator.async_shutdown()
-        hass.data[DOMAIN].pop(entry.entry_id)
-    
-    return unload_ok
+    # Unload platforms
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

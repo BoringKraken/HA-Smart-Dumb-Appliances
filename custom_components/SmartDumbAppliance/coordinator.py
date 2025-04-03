@@ -17,10 +17,6 @@ from .const import (
     CONF_STOP_WATTS,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    CONF_SERVICE_REMINDER,
-    CONF_SERVICE_REMINDER_COUNT,
-    CONF_SERVICE_REMINDER_MESSAGE,
-    DEFAULT_SERVICE_REMINDER_COUNT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,9 +30,6 @@ class ApplianceData:
     is_running: bool
     start_time: datetime | None
     end_time: datetime | None
-    cycle_duration: timedelta | None  # Duration of the current or last completed cycle
-    last_cycle_duration: timedelta | None  # Duration of the previous cycle
-    total_duration: timedelta  # Total duration of all cycles
     use_count: int
     cycle_energy: float  # Energy used in current cycle (kWh)
     previous_cycle_energy: float  # Energy used in previous cycle (kWh)
@@ -46,11 +39,6 @@ class ApplianceData:
     total_cost: float   # Total cost
     last_power: float   # Previous power reading for trapezoidal integration
     last_power_time: datetime | None  # Timestamp of previous power reading
-    service_reminder_enabled: bool  # Whether service reminders are enabled
-    service_reminder_count: int  # Number of cycles until service is needed
-    service_reminder_message: str  # Message to display when service is needed
-    remaining_cycles: int  # Number of cycles remaining until service is needed
-    service_status: str  # Current service status (ok/needs_service/disabled)
 
 class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
     """Coordinator for Smart Dumb Appliance data."""
@@ -85,16 +73,6 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_power = 0.0
         self._last_power_time = None
         self._last_cycle_end_time = None
-        self._last_cycle_duration = None
-        self._total_duration = timedelta(0)
-        
-        # Service reminder settings
-        self._service_reminder_enabled = config_entry.data.get(CONF_SERVICE_REMINDER, False)
-        self._service_reminder_count = config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
-        self._remaining_cycles = self._service_reminder_count
-        self._service_status = "ok"
-        
         self.data = None
 
         # Store the unsubscribe callback
@@ -179,13 +157,6 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             # Determine if the appliance is running
             is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
             
-            # Calculate cycle duration
-            cycle_duration = None
-            if is_on and self._start_time:
-                cycle_duration = current_time - self._start_time
-            elif not is_on and self._end_time and self._start_time:
-                cycle_duration = self._end_time - self._start_time
-            
             # Track state changes
             if is_on and not self._was_on:
                 self._start_time = current_time
@@ -202,36 +173,21 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 self._end_time = current_time
                 self._use_count += 1
                 
-                # Update remaining cycles and service status
-                if self._service_reminder_enabled:
-                    self._remaining_cycles = max(0, self._service_reminder_count - self._use_count)
-                    self._service_status = "needs_service" if self._remaining_cycles <= 0 else "ok"
-                
                 # Store previous cycle values when a cycle ends
                 if self._last_cycle_end_time != self._end_time:
                     self._previous_cycle_energy = self._cycle_energy
                     self._previous_cycle_cost = self._cycle_cost
-                    self._last_cycle_duration = cycle_duration
                     self._last_cycle_end_time = self._end_time
-                    
-                    # Update total duration
-                    if cycle_duration:
-                        self._total_duration += cycle_duration
-                    
                     _LOGGER.debug(
-                        "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f, duration: %s, "
-                        "total duration: %s, remaining cycles: %d, service status: %s",
+                        "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f",
                         self._previous_cycle_energy,
-                        self._previous_cycle_cost,
-                        self._last_cycle_duration,
-                        self._total_duration,
-                        self._remaining_cycles,
-                        self._service_status
+                        self._previous_cycle_cost
                     )
                 
+                duration = self._end_time - self._start_time if self._start_time else timedelta(0)
                 _LOGGER.debug(
                     "Appliance turned off - Duration: %s, Cycle energy: %.3f kWh, Cycle cost: $%.2f",
-                    cycle_duration,
+                    duration,
                     self._cycle_energy,
                     self._cycle_cost
                 )
@@ -253,9 +209,6 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 is_running=is_on,
                 start_time=self._start_time,
                 end_time=self._end_time,
-                cycle_duration=cycle_duration,
-                last_cycle_duration=self._last_cycle_duration,
-                total_duration=self._total_duration,
                 use_count=self._use_count,
                 cycle_energy=self._cycle_energy,
                 previous_cycle_energy=self._previous_cycle_energy,
@@ -264,33 +217,22 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 previous_cycle_cost=self._previous_cycle_cost,
                 total_cost=self._total_cost,
                 last_power=self._last_power,
-                last_power_time=self._last_power_time,
-                service_reminder_enabled=self._service_reminder_enabled,
-                service_reminder_count=self._service_reminder_count,
-                service_reminder_message=self._service_reminder_message,
-                remaining_cycles=self._remaining_cycles,
-                service_status=self._service_status
+                last_power_time=self._last_power_time
             )
             
             _LOGGER.debug(
-                "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle duration: %s, "
-                "Last cycle duration: %s, Total duration: %s, Cycle energy: %.3f kWh, "
+                "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle energy: %.3f kWh, "
                 "Previous cycle energy: %.3f kWh, Total energy: %.3f kWh, Cycle cost: $%.2f, "
-                "Previous cycle cost: $%.2f, Total cost: $%.2f, Remaining cycles: %d, Service status: %s",
+                "Previous cycle cost: $%.2f, Total cost: $%.2f",
                 current_power,
                 power_kw,
                 is_on,
-                cycle_duration,
-                self._last_cycle_duration,
-                self._total_duration,
                 self._cycle_energy,
                 self._previous_cycle_energy,
                 self._total_energy,
                 self._cycle_cost,
                 self._previous_cycle_cost,
-                self._total_cost,
-                self._remaining_cycles,
-                self._service_status
+                self._total_cost
             )
             
             return data

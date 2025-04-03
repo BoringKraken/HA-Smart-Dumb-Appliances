@@ -39,7 +39,7 @@ Attributes:
 
 ### 2. Service Status Sensor
 Attributes:
-- Service status (ok/needs_service/disabled) - Primary Attribute/Sensor
+- Service status (ok/needs_service/disabled) - Cycle state (On/Off) - Primary Attribute/Sensor
 - Cycle count (e.g. 5)
 - Service reminder enabled  (True/False)
 - Service reminder message (text)
@@ -50,30 +50,31 @@ Attributes:
 
 ### 3. Current Power Sensor
 Attributes:
-- Current power reading (watts) - Primary Attribute/Sensor
+- Current power reading (watts) - Cycle state (On/Off) - Primary Attribute/Sensor
 - Start Cycle Threshold (watts)
 - End Cycle Threshold (watts)
+- Start Cycle Threshold (watts)
 - Running state (True/False)
 - Power sensor entity (Friendly Name)
 - Last update timestamp (Date/Time)
 
 ### 4. Cycle Duration Sensor
 Attributes:
-- Total Duration for the current Cycle (hh:mm:ss updates in Real-Time) - Primary Attribute/Sensor
+- Total Duration for the current Cycle (hh:mm:ss updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
 - Total Duration for the previous Cycle (hh:mm:ss)
 - Total Duration for all Cycles (hh:mm:ss)
 - Last update timestamps
 
 ### 5. Cycle Energy Sensor
 Attributes:
-- Total energy consumption for the current Cycle (0.000 kWh updates in Real-Time) - Primary Attribute/Sensor
+- Total energy consumption for the current Cycle (0.000 kWh updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
 - Total energy consumption for the previous Cycle (kWh)
 - Total energy consumption for all Cycles (kWh)
 - Last update timestamps
 
 ### 6. Cycle Cost Sensor
 Attributes:
-- Total cost for the current Cycle  ($0.000 updates in Real-Time) - Primary Attribute/Sensor
+- Total cost for the current Cycle  ($0.000 updates in Real-Time) - Cycle state (On/Off) - Primary Attribute/Sensor
 - Total cost for the previous Cycle  ($0.00)
 - Total cost for all Cycles  ($0.00)
 - Last update timestamps
@@ -176,50 +177,35 @@ service_reminder:
 1. Power Sensor → Coordinator
    - Coordinator subscribes to power sensor changes
    - Processes power readings to determine appliance state
-   - Calculates energy usage, duration, and cost information
+   - Calculates energy usage and timing information
    - Maintains running state and use count
-   - Tracks service status and reminders
 
 2. Coordinator → Sensors
    - Coordinator provides data to all sensors
-   - Sensors receive updates through async_write_ha_state()
-   - Each sensor type processes and displays specific data:
-     - Binary Sensor: On/Off state and current cycle information
-     - Service Sensor: Service status and cycle count
-     - Power Sensor: Current power readings
-     - Duration Sensor: Cycle duration tracking
-     - Energy Sensor: Energy consumption tracking
-     - Cost Sensor: Cost tracking
-
-### File Structure
-The integration is organized into the following files:
-
-1. `__init__.py` - Main integration setup and platform registration
-2. `const.py` - Constants and configuration keys
-3. `coordinator.py` - Data coordinator that handles all calculations and state tracking
-4. `binary_sensor.py` - Binary sensor for cycle state
-5. `sensor.py` - Main sensor platform file that imports and registers all sensor types
-6. `service_sensor.py` - Service status sensor
-7. `power_sensor.py` - Current power sensor
-8. `duration_sensor.py` - Cycle duration sensor
-9. `energy_sensor.py` - Cycle energy sensor
-10. `cost_sensor.py` - Cycle cost sensor
+   - Sensors receive updates through async_update()
+   - Each sensor type processes data differently:
+     - Current Power: Direct power reading
+     - Cumulative Energy: Energy calculations
+     - Service Status: Use count and maintenance tracking
 
 ### Key Classes
 1. SmartDumbApplianceCoordinator
    - Manages data updates and state tracking
    - Handles power sensor subscriptions
-   - Calculates running state, energy usage, duration, and costs
+   - Calculates running state and energy usage
    - Provides data to all sensors
-   - Tracks service status and reminders
 
-2. Sensor Classes
-   - SmartDumbApplianceBinarySensor - Cycle state (On/Off)
-   - SmartDumbApplianceServiceSensor - Service status
-   - SmartDumbAppliancePowerSensor - Current power
-   - SmartDumbApplianceDurationSensor - Cycle duration
-   - SmartDumbApplianceEnergySensor - Cycle energy
-   - SmartDumbApplianceCostSensor - Cycle cost
+2. SmartDumbApplianceBase
+   - Base class for all sensors
+   - Handles common initialization and updates
+   - Manages icon and color updates
+   - Provides shared attributes and methods
+
+3. Sensor Types
+   - SmartDumbApplianceCurrentPowerSensor
+   - SmartDumbApplianceCumulativeEnergySensor
+   - SmartDumbApplianceServiceSensor
+   - SmartDumbApplianceBinarySensor
 
 ### State Management
 1. Coordinator State
@@ -229,46 +215,13 @@ The integration is organized into the following files:
    - end_time: Cycle end timestamp
    - use_count: Total usage cycles
    - cycle_energy: Current cycle energy
-   - previous_cycle_energy: Previous cycle energy
-   - total_energy: Total energy used
    - cycle_cost: Current cycle cost
-   - previous_cycle_cost: Previous cycle cost
-   - total_cost: Total cost
-   - cycle_duration: Current cycle duration
-   - last_cycle_duration: Previous cycle duration
-   - total_duration: Total duration of all cycles
-   - service_status: Current service status
-   - remaining_cycles: Cycles until service needed
 
 2. Sensor State
    - native_value: Primary sensor value
    - extra_state_attributes: Additional data
    - icon: Current display icon
-
-### Calculation Methods
-All calculations are performed in the coordinator:
-
-1. Power State Detection
-   - Compares current power to start/stop thresholds
-   - Applies debounce logic to prevent false triggers
-
-2. Energy Calculation
-   - Uses trapezoidal integration for accurate energy calculation
-   - Tracks energy per cycle and total energy
-
-3. Cost Calculation
-   - Fetches current cost rate from cost sensor
-   - Calculates cost based on energy usage and rate
-
-4. Duration Tracking
-   - Calculates current cycle duration
-   - Tracks previous cycle duration
-   - Maintains total duration across all cycles
-
-5. Service Status
-   - Tracks cycle count
-   - Calculates remaining cycles until service
-   - Updates service status based on configuration
+   - entity_picture: Colored icon image
 
 ### Debug Logging
 The integration provides extensive debug logging at key points:
@@ -277,14 +230,18 @@ The integration provides extensive debug logging at key points:
    - Power sensor state changes
    - Running state transitions
    - Energy calculations
-   - Duration tracking
-   - Cost calculations
-   - Service status updates
+   - Update timing information
 
 2. Sensor Logging
    - Update receipt from coordinator
    - State changes
-   - Attribute updates
+   - Energy calculations
+   - Service status changes
+
+3. Binary Sensor Logging
+   - State transitions
+   - Power readings
+   - Timing information
 
 ### Common Issues and Solutions
 
@@ -304,20 +261,19 @@ The integration provides extensive debug logging at key points:
    - Verify timing data
    - Check power readings
    - Review energy calculation logic
-   - Check coordinator logs
+   - Check sensor logs
 
 4. Service Status Issues
    - Verify use count tracking
    - Check service reminder settings
    - Review service status logic
-   - Check coordinator logs
+   - Check service sensor logs
 
 ### Development Guidelines
 
 1. Adding New Features
+   - Extend SmartDumbApplianceBase
    - Update coordinator data structure
-   - Add calculation logic to coordinator
-   - Create or update appropriate sensor
    - Add appropriate logging
    - Update documentation
 
@@ -338,8 +294,6 @@ The integration provides extensive debug logging at key points:
    - Power sensor changes
    - Running state transitions
    - Energy calculations
-   - Duration tracking
-   - Cost calculations
    - Service status updates
 
 2. Logging Verification
