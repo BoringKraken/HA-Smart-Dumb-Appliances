@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.core import callback
-from homeassistant.helpers.event import async_track_state_change
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_POWER_SENSOR,
@@ -297,7 +297,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
     async def async_setup(self) -> None:
         """Set up the coordinator."""
         # Subscribe to power sensor changes
-        self._unsubscribe = async_track_state_change(
+        self._unsubscribe = async_track_state_change_event(
             self.hass,
             self._power_sensor,
             self._async_power_sensor_changed
@@ -313,16 +313,16 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         await super().async_shutdown()
 
     @callback
-    def _async_power_sensor_changed(self, entity_id: str, old_state: Any, new_state: Any) -> None:
+    def _async_power_sensor_changed(self, event) -> None:
         """Handle power sensor state changes."""
+        new_state = event.data.get("new_state")
         if new_state is None:
-            _LOGGER.debug("Power sensor %s state is None, skipping update", entity_id)
+            _LOGGER.debug("Power sensor %s state is None, skipping update", self._power_sensor)
             return
         
         _LOGGER.debug(
-            "Power sensor %s changed: old_state=%s, new_state=%s",
-            entity_id,
-            old_state.state if old_state else "None",
+            "Power sensor %s changed: new_state=%s",
+            self._power_sensor,
             new_state.state
         )
         

@@ -642,7 +642,7 @@ class SmartDumbApplianceCycleStateSensor(SensorEntity):
         super().__init__()
         self.coordinator = coordinator
         self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle State"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_state"
+        self._attr_unique_id = f"{config_entry.entry_id}_cycle_state_sensor"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_icon = "mdi:power"
