@@ -10,6 +10,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.const import UnitOfPower
 
+from .const import (
+    DOMAIN,
+    CONF_POWER_SENSOR,
+    CONF_START_WATTS,
+    CONF_STOP_WATTS,
+    DEFAULT_START_WATTS,
+    DEFAULT_STOP_WATTS,
+)
 from .coordinator import SmartDumbApplianceCoordinator
 
 _LOGGER = logging.getLogger(__name__)

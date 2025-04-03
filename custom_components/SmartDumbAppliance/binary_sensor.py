@@ -34,6 +34,7 @@ from .const import (
     ATTR_START_TIME,
     ATTR_END_TIME,
     ATTR_USE_COUNT,
+    DOMAIN,
 )
 from .coordinator import SmartDumbApplianceCoordinator
 

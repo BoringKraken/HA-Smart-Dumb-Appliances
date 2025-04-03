@@ -198,11 +198,12 @@ The integration is organized into the following files:
 2. `const.py` - Constants and configuration keys
 3. `coordinator.py` - Data coordinator that handles all calculations and state tracking
 4. `binary_sensor.py` - Binary sensor for cycle state
-5. `service_sensor.py` - Service status sensor
-6. `power_sensor.py` - Current power sensor
-7. `duration_sensor.py` - Cycle duration sensor
-8. `energy_sensor.py` - Cycle energy sensor
-9. `cost_sensor.py` - Cycle cost sensor
+5. `sensor.py` - Main sensor platform file that imports and registers all sensor types
+6. `service_sensor.py` - Service status sensor
+7. `power_sensor.py` - Current power sensor
+8. `duration_sensor.py` - Cycle duration sensor
+9. `energy_sensor.py` - Cycle energy sensor
+10. `cost_sensor.py` - Cycle cost sensor
 
 ### Key Classes
 1. SmartDumbApplianceCoordinator
