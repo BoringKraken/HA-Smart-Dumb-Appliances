@@ -471,47 +471,51 @@ class SmartDumbAppliancePowerSensor(SensorEntity):
         self.coordinator.async_remove_listener(self.async_write_ha_state)
 
 class SmartDumbApplianceDurationSensor(SensorEntity):
-    """Sensor representing the cycle duration of a smart dumb appliance."""
+    """Sensor for tracking appliance cycle duration."""
 
     def __init__(
         self,
         coordinator: SmartDumbApplianceCoordinator,
         config_entry: ConfigEntry,
     ) -> None:
-        """Initialize the cycle duration sensor."""
+        """Initialize the duration sensor."""
+        super().__init__()
         self.coordinator = coordinator
-        self.config_entry = config_entry
-        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle Duration"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_duration"
+        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle Duration"
+        self._attr_unique_id = f"{config_entry.entry_id}_duration"
+        self._attr_device_class = None
+        self._attr_native_unit_of_measurement = None
         self._attr_icon = "mdi:timer"
-        self._attr_extra_state_attributes = {
-            "current_cycle_duration": None,
-            "previous_cycle_duration": None,
-            "total_duration": timedelta(0),
-            "last_update": None,
-        }
 
     @property
     def native_value(self) -> timedelta | None:
         """Return the current cycle duration."""
-        if self.coordinator.data is None:
+        if not self.coordinator.data:
             return None
         return self.coordinator.data.cycle_duration
 
     @property
     def extra_state_attributes(self):
-        """Return entity specific state attributes."""
-        if self.coordinator.data is None:
-            return self._attr_extra_state_attributes
-
-        data = self.coordinator.data
-        self._attr_extra_state_attributes.update({
-            "current_cycle_duration": data.cycle_duration,
-            "previous_cycle_duration": data.last_cycle_duration,
-            "total_duration": data.total_duration,
-            "last_update": data.last_update,
-        })
-        return self._attr_extra_state_attributes
+        """Return additional attributes."""
+        if not self.coordinator.data:
+            return {
+                "current_cycle_duration": None,
+                "previous_cycle_duration": "0:00:00",
+                "total_duration": "0:00:00",
+                "last_update": None,
+            }
+            
+        # Convert timedelta objects to strings
+        current_duration = str(self.coordinator.data.cycle_duration) if self.coordinator.data.cycle_duration else None
+        previous_duration = str(self.coordinator.data.last_cycle_duration) if self.coordinator.data.last_cycle_duration else "0:00:00"
+        total_duration = str(self.coordinator.data.total_duration) if self.coordinator.data.total_duration else "0:00:00"
+        
+        return {
+            "current_cycle_duration": current_duration,
+            "previous_cycle_duration": previous_duration,
+            "total_duration": total_duration,
+            "last_update": self.coordinator.data.last_update.isoformat() if self.coordinator.data.last_update else None,
+        }
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
