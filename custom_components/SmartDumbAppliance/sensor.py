@@ -489,7 +489,7 @@ class SmartDumbApplianceDurationSensor(SensorEntity):
 
     @property
     def native_value(self) -> timedelta | None:
-        """Return the current cycle duration."""
+        """Return the current Cycle duration."""
         if not self.coordinator.data:
             return None
         return self.coordinator.data.cycle_duration
