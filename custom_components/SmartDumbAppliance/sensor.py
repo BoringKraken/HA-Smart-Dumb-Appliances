@@ -315,7 +315,7 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self.coordinator = coordinator
         self.config_entry = config_entry
         self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle State"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_state"
+        self._attr_unique_id = f"{config_entry.entry_id}_binary_sensor"
         self._attr_device_class = "power"
         self._attr_icon = "mdi:power"
         self._attr_extra_state_attributes = {
@@ -373,7 +373,7 @@ class SmartDumbApplianceServiceSensor(SensorEntity):
         self.coordinator = coordinator
         self.config_entry = config_entry
         self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Service Status"
-        self._attr_unique_id = f"{config_entry.entry_id}_service_status"
+        self._attr_unique_id = f"{config_entry.entry_id}_service_sensor"
         self._attr_icon = "mdi:wrench"
         self._attr_extra_state_attributes = {
             "cycle_count": 0,
@@ -430,7 +430,7 @@ class SmartDumbAppliancePowerSensor(SensorEntity):
         self.coordinator = coordinator
         self.config_entry = config_entry
         self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Current Power"
-        self._attr_unique_id = f"{config_entry.entry_id}_current_power"
+        self._attr_unique_id = f"{config_entry.entry_id}_power_sensor"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -483,7 +483,7 @@ class SmartDumbApplianceDurationSensor(SensorEntity):
         super().__init__()
         self.coordinator = coordinator
         self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle Duration"
-        self._attr_unique_id = f"{config_entry.entry_id}_duration"
+        self._attr_unique_id = f"{config_entry.entry_id}_duration_sensor"
         self._attr_device_class = None
         self._attr_native_unit_of_measurement = None
         self._attr_icon = "mdi:timer"
@@ -534,7 +534,7 @@ class SmartDumbApplianceEnergySensor(SensorEntity):
         self.coordinator = coordinator
         self.config_entry = config_entry
         self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle Energy"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_energy"
+        self._attr_unique_id = f"{config_entry.entry_id}_energy_sensor"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -588,7 +588,7 @@ class SmartDumbApplianceCostSensor(SensorEntity):
         self.coordinator = coordinator
         self.config_entry = config_entry
         self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle Cost"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_cost"
+        self._attr_unique_id = f"{config_entry.entry_id}_cost_sensor"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_native_unit_of_measurement = "USD"
         self._attr_state_class = SensorStateClass.TOTAL
