@@ -166,6 +166,9 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             # Determine if the appliance is running
             is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
             
+            # Calculate current duration
+            current_duration = current_time - self._start_time if self._start_time else timedelta(0)
+            
             # Track state changes
             if is_on and not self._was_on:
                 self._start_time = current_time
@@ -193,10 +196,9 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                         self._previous_cycle_cost
                     )
                 
-                duration = self._end_time - self._start_time if self._start_time else timedelta(0)
                 _LOGGER.debug(
                     "Appliance turned off - Duration: %s, Cycle energy: %.3f kWh, Cycle cost: $%.2f",
-                    duration,
+                    current_duration,
                     self._cycle_energy,
                     self._cycle_cost
                 )
@@ -227,9 +229,9 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 total_cost=self._total_cost,
                 last_power=self._last_power,
                 last_power_time=self._last_power_time,
-                cycle_duration=duration if is_on else None,
-                last_cycle_duration=duration if not is_on else None,
-                total_duration=duration if is_on else timedelta(0),
+                cycle_duration=current_duration if is_on else None,
+                last_cycle_duration=current_duration if not is_on else None,
+                total_duration=self._total_duration + current_duration,
                 service_status="ok" if is_on else "disabled",
                 service_reminder_enabled=False,
                 service_reminder_message="",
