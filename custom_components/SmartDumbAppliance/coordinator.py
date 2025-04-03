@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.core import callback
+from homeassistant.helpers.event import async_track_state_change
 
 from .const import (
     CONF_POWER_SENSOR,
@@ -265,14 +266,15 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
-        # Start the periodic updates
-        await self.async_config_entry_first_refresh()
-        
-        # Set up power sensor state tracking
-        self._unsubscribe = self.hass.helpers.event.async_track_state_change(
+        # Subscribe to power sensor changes
+        self._unsubscribe = async_track_state_change(
+            self.hass,
             self._power_sensor,
             self._async_power_sensor_changed
         )
+        
+        # Initial data fetch
+        await self.async_request_refresh()
 
     async def async_shutdown(self) -> None:
         """Clean up resources."""

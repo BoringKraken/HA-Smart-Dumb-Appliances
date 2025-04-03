@@ -631,4 +631,63 @@ class SmartDumbApplianceCostSensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
+
+class SmartDumbApplianceCycleStateSensor(SensorEntity):
+    """Sensor representing the cycle state of a smart dumb appliance."""
+
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the cycle state sensor."""
+        super().__init__()
+        self.coordinator = coordinator
+        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle State"
+        self._attr_unique_id = f"{config_entry.entry_id}_cycle_state"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_native_unit_of_measurement = UnitOfPower.WATT
+        self._attr_icon = "mdi:power"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current power reading."""
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.power_state
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if not self.coordinator.data:
+            return {
+                "current_power": None,
+                "start_time": None,
+                "end_time": None,
+                "cycle_duration": "0:00:00",
+                "cycle_energy": 0.0,
+                "cycle_cost": 0.0,
+                "last_update": None,
+            }
+            
+        # Convert timedelta to string
+        cycle_duration = str(self.coordinator.data.cycle_duration) if self.coordinator.data.cycle_duration else "0:00:00"
+        
+        return {
+            "current_power": self.coordinator.data.power_state,
+            "start_time": self.coordinator.data.start_time.isoformat() if self.coordinator.data.start_time else None,
+            "end_time": self.coordinator.data.end_time.isoformat() if self.coordinator.data.end_time else None,
+            "cycle_duration": cycle_duration,
+            "cycle_energy": self.coordinator.data.cycle_energy,
+            "cycle_cost": self.coordinator.data.cycle_cost,
+            "last_update": self.coordinator.data.last_update.isoformat() if self.coordinator.data.last_update else None,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
         self.coordinator.async_remove_listener(self.async_write_ha_state) 
