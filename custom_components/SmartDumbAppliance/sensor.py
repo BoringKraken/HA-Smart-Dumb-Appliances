@@ -429,10 +429,15 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
     Sensor for tracking cumulative energy usage of a smart dumb appliance.
     
     This sensor provides:
-    - Total energy consumption in kWh
-    - Total cost tracking
-    - Last update timestamp
-    - Start/End times of operation
+    - Total energy consumption for the current Cycle (kWh)
+    - Total energy consumption for the previous Cycle (kWh)
+    - Total energy consumption for all Cycles (kWh)
+    - Total cost for the current Cycle ($0.00)
+    - Total cost for the previous Cycle ($0.00)
+    - Total cost for all Cycles ($0.00)
+    - Cycle Start time
+    - Cycle End time
+    - Last update timestamps
     """
 
     def __init__(
@@ -452,8 +457,10 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         self._attr_available = True
         self._attr_extra_state_attributes = {
             "cycle_energy": 0.0,
+            "previous_cycle_energy": 0.0,
             "total_energy": 0.0,
             "cycle_cost": 0.0,
+            "previous_cycle_cost": 0.0,
             "total_cost": 0.0,
             "last_update": None,
             "start_time": None,
@@ -461,14 +468,34 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         }
         self._attr_has_entity_name = True
         self._attr_translation_key = "cumulative_energy"
+        
+        # Track previous cycle values
+        self._previous_cycle_energy = 0.0
+        self._previous_cycle_cost = 0.0
+        self._last_cycle_end_time = None
 
     def _update_entity_state(self, data: Any) -> None:
         """Update entity state from coordinator data."""
+        # Check if a cycle just ended (we have an end time but no start time)
+        if data.end_time and not data.is_running and self._last_cycle_end_time != data.end_time:
+            # Store the previous cycle values
+            self._previous_cycle_energy = data.cycle_energy
+            self._previous_cycle_cost = data.cycle_cost
+            self._last_cycle_end_time = data.end_time
+            
+            _LOGGER.debug(
+                "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f",
+                self._previous_cycle_energy,
+                self._previous_cycle_cost
+            )
+        
         self._attr_native_value = data.total_energy
         self._attr_extra_state_attributes.update({
             "cycle_energy": data.cycle_energy,
+            "previous_cycle_energy": self._previous_cycle_energy,
             "total_energy": data.total_energy,
             "cycle_cost": data.cycle_cost,
+            "previous_cycle_cost": self._previous_cycle_cost,
             "total_cost": data.total_cost,
             "last_update": data.last_update,
             "start_time": data.start_time,
@@ -477,12 +504,14 @@ class SmartDumbApplianceCumulativeEnergySensor(SmartDumbApplianceBase, SensorEnt
         
         # Log the update
         _LOGGER.debug(
-            "Updated cumulative energy sensor for %s - Cycle: %.3f kWh, Total: %.3f kWh, "
-            "Cycle cost: $%.2f, Total cost: $%.2f",
+            "Updated cumulative energy sensor for %s - Current cycle: %.3f kWh, Previous cycle: %.3f kWh, "
+            "Total: %.3f kWh, Current cost: $%.2f, Previous cost: $%.2f, Total cost: $%.2f",
             self._attr_name,
             data.cycle_energy,
+            self._previous_cycle_energy,
             data.total_energy,
             data.cycle_cost,
+            self._previous_cycle_cost,
             data.total_cost
         )
 

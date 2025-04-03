@@ -32,8 +32,10 @@ class ApplianceData:
     end_time: datetime | None
     use_count: int
     cycle_energy: float  # Energy used in current cycle (kWh)
+    previous_cycle_energy: float  # Energy used in previous cycle (kWh)
     total_energy: float  # Total energy used (kWh)
     cycle_cost: float   # Cost of current cycle
+    previous_cycle_cost: float  # Cost of previous cycle
     total_cost: float   # Total cost
     last_power: float   # Previous power reading for trapezoidal integration
     last_power_time: datetime | None  # Timestamp of previous power reading
@@ -62,12 +64,15 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._end_time = None
         self._use_count = 0
         self._cycle_energy = 0.0
+        self._previous_cycle_energy = 0.0
         self._total_energy = 0.0
         self._cycle_cost = 0.0
+        self._previous_cycle_cost = 0.0
         self._total_cost = 0.0
         self._was_on = False
         self._last_power = 0.0
         self._last_power_time = None
+        self._last_cycle_end_time = None
         self.data = None
 
         # Store the unsubscribe callback
@@ -167,6 +172,18 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             elif not is_on and self._was_on:
                 self._end_time = current_time
                 self._use_count += 1
+                
+                # Store previous cycle values when a cycle ends
+                if self._last_cycle_end_time != self._end_time:
+                    self._previous_cycle_energy = self._cycle_energy
+                    self._previous_cycle_cost = self._cycle_cost
+                    self._last_cycle_end_time = self._end_time
+                    _LOGGER.debug(
+                        "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f",
+                        self._previous_cycle_energy,
+                        self._previous_cycle_cost
+                    )
+                
                 duration = self._end_time - self._start_time if self._start_time else timedelta(0)
                 _LOGGER.debug(
                     "Appliance turned off - Duration: %s, Cycle energy: %.3f kWh, Cycle cost: $%.2f",
@@ -194,8 +211,10 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 end_time=self._end_time,
                 use_count=self._use_count,
                 cycle_energy=self._cycle_energy,
+                previous_cycle_energy=self._previous_cycle_energy,
                 total_energy=self._total_energy,
                 cycle_cost=self._cycle_cost,
+                previous_cycle_cost=self._previous_cycle_cost,
                 total_cost=self._total_cost,
                 last_power=self._last_power,
                 last_power_time=self._last_power_time
@@ -203,13 +222,16 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             
             _LOGGER.debug(
                 "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle energy: %.3f kWh, "
-                "Total energy: %.3f kWh, Cycle cost: $%.2f, Total cost: $%.2f",
+                "Previous cycle energy: %.3f kWh, Total energy: %.3f kWh, Cycle cost: $%.2f, "
+                "Previous cycle cost: $%.2f, Total cost: $%.2f",
                 current_power,
                 power_kw,
                 is_on,
                 self._cycle_energy,
+                self._previous_cycle_energy,
                 self._total_energy,
                 self._cycle_cost,
+                self._previous_cycle_cost,
                 self._total_cost
             )
             
