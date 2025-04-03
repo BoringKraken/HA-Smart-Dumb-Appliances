@@ -536,7 +536,7 @@ class SmartDumbApplianceEnergySensor(SensorEntity):
         self._attr_unique_id = f"{config_entry.entry_id}_cycle_energy"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_extra_state_attributes = {
             "current_cycle_energy": 0.0,
@@ -590,7 +590,7 @@ class SmartDumbApplianceCostSensor(SensorEntity):
         self._attr_unique_id = f"{config_entry.entry_id}_cycle_cost"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_native_unit_of_measurement = "USD"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL
         self._attr_icon = "mdi:currency-usd"
         self._attr_extra_state_attributes = {
             "current_cycle_cost": 0.0,

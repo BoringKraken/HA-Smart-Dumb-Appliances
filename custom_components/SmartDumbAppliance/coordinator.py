@@ -39,6 +39,14 @@ class ApplianceData:
     total_cost: float   # Total cost
     last_power: float   # Previous power reading for trapezoidal integration
     last_power_time: datetime | None  # Timestamp of previous power reading
+    cycle_duration: timedelta | None  # Duration of current or last completed cycle
+    last_cycle_duration: timedelta | None  # Duration of previous cycle
+    total_duration: timedelta  # Total duration of all cycles
+    service_status: str  # Current service status (ok/needs_service/disabled)
+    service_reminder_enabled: bool  # Whether service reminders are enabled
+    service_reminder_message: str  # Message to display when service is needed
+    service_reminder_count: int  # Number of cycles until service is needed
+    remaining_cycles: int  # Number of cycles remaining until service is needed
 
 class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
     """Coordinator for Smart Dumb Appliance data."""
@@ -73,6 +81,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_power = 0.0
         self._last_power_time = None
         self._last_cycle_end_time = None
+        self._total_duration = timedelta(0)
         self.data = None
 
         # Store the unsubscribe callback
@@ -217,7 +226,15 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 previous_cycle_cost=self._previous_cycle_cost,
                 total_cost=self._total_cost,
                 last_power=self._last_power,
-                last_power_time=self._last_power_time
+                last_power_time=self._last_power_time,
+                cycle_duration=duration if is_on else None,
+                last_cycle_duration=duration if not is_on else None,
+                total_duration=duration if is_on else timedelta(0),
+                service_status="ok" if is_on else "disabled",
+                service_reminder_enabled=False,
+                service_reminder_message="",
+                service_reminder_count=0,
+                remaining_cycles=0
             )
             
             _LOGGER.debug(
