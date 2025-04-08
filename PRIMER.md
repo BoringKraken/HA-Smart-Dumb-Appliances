@@ -199,6 +199,7 @@ service_reminder:
 3. **Impact Review**: Review the impact on all sensors and the overall state management.
 4. **Logging**: Maintain logging consistency across changes.
 5. **Documentation**: Update documentation (`PRIMER.md`, docstrings) to reflect modifications.
+6. **Deprecation**: If any functions, classes, or features are decommissioned, marked as EOL, or no longer used, ensure `PRIMER.md` is updated accordingly to remove or mark them as deprecated, so they arent used in further updates and changes.
 
 ### Debugging
 1. Enable debug logging in Home Assistant's `configuration.yaml` for `custom_components.smart_dumb_appliance` to trace state changes and calculations.
