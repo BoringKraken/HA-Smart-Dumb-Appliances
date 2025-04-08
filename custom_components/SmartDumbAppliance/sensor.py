@@ -19,26 +19,25 @@ from io import BytesIO
 from PIL import Image, ImageDraw
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
+from homeassistant.const import UnitOfEnergy, UnitOfPower
 
 from .const import (
     CONF_POWER_SENSOR,
     CONF_COST_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
-    CONF_DEAD_ZONE,
     CONF_DEBOUNCE,
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_COUNT,
     CONF_SERVICE_REMINDER_MESSAGE,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    DEFAULT_DEAD_ZONE,
     DEFAULT_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT,
     ATTR_POWER_USAGE,
@@ -51,7 +50,9 @@ from .const import (
     ATTR_NEXT_SERVICE,
     ATTR_SERVICE_MESSAGE,
     CONF_DEVICE_NAME,
+    DOMAIN,
 )
+from .coordinator import SmartDumbApplianceCoordinator
 
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)
@@ -287,250 +288,367 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Smart Dumb Appliance sensors from a config entry."""
-    # Get the configuration data
-    config = config_entry.data
-    device_name = config[CONF_DEVICE_NAME]
-
-    # Create the base class instance
-    base = SmartDumbApplianceBase(hass, config)
-
-    # Create and add the sensors
-    async_add_entities([
-        SmartDumbApplianceEnergySensor(base, device_name),
-        SmartDumbApplianceBinarySensor(base, device_name),
-        SmartDumbApplianceServiceSensor(base, device_name),
-    ])
-
-class SmartDumbApplianceBase:
-    """Base class for Smart Dumb Appliance sensors."""
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
     
-    def __init__(self, hass: HomeAssistant, config: dict) -> None:
-        """Initialize the base sensor."""
-        self.hass = hass
-        self.config = config
-        self._attr_name = config.get(CONF_DEVICE_NAME, "Smart Dumb Appliance")
-        self._attr_unique_id = f"{config.get('entry_id')}"
-        
-        # Load configuration
-        self._power_sensor = config[CONF_POWER_SENSOR]
-        self._cost_sensor = config.get(CONF_COST_SENSOR)
-        self._start_watts = config.get(CONF_START_WATTS, DEFAULT_START_WATTS)
-        self._stop_watts = config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._dead_zone = config.get(CONF_DEAD_ZONE, DEFAULT_DEAD_ZONE)
-        self._debounce = config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
-        self._service_reminder = config.get(CONF_SERVICE_REMINDER, False)
-        self._service_reminder_count = config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)
-        self._service_reminder_message = config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")
-        
-        # Get appropriate icon based on appliance name
-        self._attr_icon = get_appliance_icon(self._attr_name)
-        
-        # Initialize state tracking
-        self._last_update = None
-        self._last_power = 0.0
-        self._total_energy = 0.0
-        self._total_cost = 0.0
-        self._start_time = None
-        self._end_time = None
-        self._use_count = 0
-        self._last_service = None
-        self._next_service = None
-        self._was_on = False
-        self._cycle_energy = 0.0
-        self._cycle_cost = 0.0
+    # Create all sensors
+    sensors = [
+        SmartDumbApplianceServiceSensor(coordinator, config_entry),
+        SmartDumbAppliancePowerSensor(coordinator, config_entry),
+        SmartDumbApplianceDurationSensor(coordinator, config_entry),
+        SmartDumbApplianceEnergySensor(coordinator, config_entry),
+        SmartDumbApplianceCostSensor(coordinator, config_entry),
+    ]
+    
+    async_add_entities(sensors)
 
-    def _update_icon_and_color(self, status: str, power_state: bool = None) -> None:
-        """
-        Update the icon and color based on status.
-        
-        Args:
-            status: The current status
-            power_state: Optional power state
-        """
-        icon_name, color = get_status_icon(status, power_state)
-        self._attr_icon = icon_name
-        colored_icon = create_colored_icon(icon_name, color)
-        if colored_icon:
-            self._attr_entity_picture = colored_icon
-        else:
-            self._attr_entity_picture = None
+class SmartDumbApplianceBinarySensor(BinarySensorEntity):
+    """Binary sensor representing the cycle state of a smart dumb appliance."""
 
-    async def async_update(self) -> None:
-        """Update the sensor state."""
-        try:
-            power_state = self.hass.states.get(self._power_sensor)
-            if power_state is None:
-                _LOGGER.warning("Power sensor %s not found", self._power_sensor)
-                return
-
-            current_power = float(power_state.state)
-            self._last_power = current_power
-            now = datetime.now()
-            self._last_update = now
-
-            # Log threshold crossings
-            if current_power > self._start_watts and not self._was_on:
-                _LOGGER.debug(
-                    "%s crossed start threshold (%.1fW > %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._start_watts
-                )
-            elif current_power < self._stop_watts and self._was_on:
-                _LOGGER.debug(
-                    "%s crossed stop threshold (%.1fW < %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._stop_watts
-                )
-            elif current_power < self._dead_zone and self._was_on:
-                _LOGGER.debug(
-                    "%s crossed dead zone threshold (%.1fW < %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._dead_zone
-                )
-
-            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
-            
-            if is_on and not self._was_on:
-                self._start_time = now
-                self._end_time = None
-                self._cycle_energy = 0.0
-                self._cycle_cost = 0.0
-                _LOGGER.info(
-                    "%s turned on (Power: %.1fW, Start threshold: %.1fW)",
-                    self._attr_name,
-                    current_power,
-                    self._start_watts
-                )
-            elif not is_on and self._was_on:
-                self._end_time = now
-                self._use_count += 1
-                duration = self._end_time - self._start_time if self._start_time else "unknown"
-                
-                _LOGGER.info(
-                    "%s turned off - Cycle Summary:\n"
-                    "  Duration: %s\n"
-                    "  Energy Used: %.3f kWh\n"
-                    "  Cost: %.2f\n"
-                    "  Average Power: %.1fW\n"
-                    "  Total Uses: %d",
-                    self._attr_name,
-                    duration,
-                    self._cycle_energy,
-                    self._cycle_cost,
-                    (self._cycle_energy * 3600000) / duration.total_seconds() if isinstance(duration, timedelta) else 0,
-                    self._use_count
-                )
-                
-                if self._service_reminder and self._use_count >= self._service_reminder_count:
-                    self._last_service = self._next_service or now
-                    self._next_service = now + timedelta(days=1)
-                    _LOGGER.info(
-                        "Service reminder for %s: %s (Use count: %d/%d)",
-                        self._attr_name,
-                        self._service_reminder_message,
-                        self._use_count,
-                        self._service_reminder_count
-                    )
-            
-            self._was_on = is_on
-
-            if is_on and self._start_time is not None:
-                delta = (now - self._start_time).total_seconds()
-                if delta > self._debounce:
-                    energy = (current_power * delta) / 3600000
-                    self._total_energy += energy
-                    self._cycle_energy += energy
-
-                    if self._cost_sensor:
-                        cost_state = self.hass.states.get(self._cost_sensor)
-                        if cost_state is not None:
-                            cost_per_kwh = float(cost_state.state)
-                            cycle_cost = energy * cost_per_kwh
-                            self._total_cost += cycle_cost
-                            self._cycle_cost += cycle_cost
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error("Error updating sensor: %s", err)
-            return
-
-class SmartDumbApplianceEnergySensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking energy usage of an appliance."""
-
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
-        """Initialize the energy sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Energy Usage"
-        self._attr_unique_id = f"{device_name}_energy_usage"
-        self._attr_native_value = 0.0
-        self._attr_native_unit_of_measurement = "kWh"
-        self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        self._attr_icon = get_appliance_icon(device_name)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return additional state attributes."""
-        return {
-            ATTR_POWER_USAGE: self._last_power,
-            ATTR_TOTAL_COST: self._total_cost,
-            ATTR_LAST_UPDATE: self._last_update,
-            ATTR_START_TIME: self._start_time,
-            ATTR_END_TIME: self._end_time,
-            ATTR_USE_COUNT: self._use_count,
-            ATTR_LAST_SERVICE: self._last_service,
-            ATTR_NEXT_SERVICE: self._next_service,
-            ATTR_SERVICE_MESSAGE: self._service_reminder_message if self._service_reminder else None,
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the binary sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle State"
+        self._attr_unique_id = f"{config_entry.entry_id}_binary_sensor"
+        self._attr_device_class = "power"
+        self._attr_icon = "mdi:power"
+        self._attr_extra_state_attributes = {
+            "current_power": 0.0,
+            "start_time": None,
+            "end_time": None,
+            "cycle_duration": "0:00:00",
+            "cycle_energy": 0.0,
+            "cycle_cost": 0.0,
+            "last_update": None,
         }
 
-    async def async_update(self) -> None:
-        """Update the energy sensor state."""
-        await super().async_update()
-        self._attr_native_value = self._total_energy
-        # Update icon and color based on power state
-        self._update_icon_and_color("on" if self._was_on else "off")
+    @property
+    def is_on(self) -> bool:
+        """Return True if the appliance is running."""
+        if self.coordinator.data is None:
+            return False
+        return self.coordinator.data.is_running
 
-class SmartDumbApplianceBinarySensor(SmartDumbApplianceBase, BinarySensorEntity):
-    """Binary sensor for tracking if an appliance is running."""
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if self.coordinator.data is None:
+            return self._attr_extra_state_attributes
 
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
-        """Initialize the binary sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Power State"
-        self._attr_unique_id = f"{device_name}_power_state"
-        self._attr_device_class = BinarySensorDeviceClass.POWER
-        self._attr_icon = get_appliance_icon(device_name)
+        data = self.coordinator.data
+        self._attr_extra_state_attributes.update({
+            "current_power": data.power_state,
+            "start_time": data.formatted_start_time,
+            "end_time": data.formatted_end_time,
+            "cycle_duration": data.formatted_cycle_duration,
+            "cycle_energy": data.cycle_energy,
+            "cycle_cost": data.cycle_cost,
+            "last_update": data.formatted_last_update,
+        })
+        return self._attr_extra_state_attributes
 
-    async def async_update(self) -> None:
-        """Update the binary sensor state."""
-        await super().async_update()
-        self._attr_is_on = self._was_on
-        # Update icon and color based on power state
-        self._update_icon_and_color("on" if self._was_on else "off")
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
 
-class SmartDumbApplianceServiceSensor(SmartDumbApplianceBase, SensorEntity):
-    """Sensor for tracking service status of an appliance."""
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
 
-    def __init__(self, base: SmartDumbApplianceBase, device_name: str) -> None:
-        """Initialize the service sensor."""
-        super().__init__(base.hass, base.config)
-        self._attr_name = f"{device_name} Service Status"
-        self._attr_unique_id = f"{device_name}_service_status"
-        self._attr_native_value = "OK"
-        self._attr_icon = get_status_icon("ok")
+class SmartDumbApplianceServiceSensor(SensorEntity):
+    """Sensor representing the service status of a smart dumb appliance."""
 
-    async def async_update(self) -> None:
-        """Update the service sensor state."""
-        await super().async_update()
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the service status sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
         
-        if not self._service_reminder:
-            self._attr_native_value = "disabled"
-            self._update_icon_and_color("disabled")
-        elif self._use_count >= self._service_reminder_count:
-            self._attr_native_value = "needs_service"
-            self._update_icon_and_color("needs_service")
-        else:
-            self._attr_native_value = "ok"
-            self._update_icon_and_color("ok") 
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Service Status"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_service_status"
+        self._attr_icon = "mdi:wrench"
+        self._attr_extra_state_attributes = {
+            "cycle_count": 0,
+            "service_reminder_enabled": False,
+            "service_reminder_message": "",
+            "total_cycles_till_service": 0,
+            "remaining_cycles": 0,
+            "current_running_state": False,
+            "last_update": None,
+        }
+
+    @property
+    def native_value(self) -> str:
+        """Return the service status."""
+        if self.coordinator.data is None:
+            return "ok"
+        return self.coordinator.data.service_status
+
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if self.coordinator.data is None:
+            return self._attr_extra_state_attributes
+
+        data = self.coordinator.data
+        self._attr_extra_state_attributes.update({
+            "cycle_count": data.use_count,
+            "service_reminder_enabled": data.service_reminder_enabled,
+            "service_reminder_message": data.service_reminder_message,
+            "total_cycles_till_service": data.service_reminder_count,
+            "remaining_cycles": data.remaining_cycles,
+            "current_running_state": data.is_running,
+            "last_update": data.formatted_last_update,
+        })
+        return self._attr_extra_state_attributes
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
+
+class SmartDumbAppliancePowerSensor(SensorEntity):
+    """Sensor representing the current power usage of a smart dumb appliance."""
+
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the current power sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Current Power"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_current_power"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_native_unit_of_measurement = UnitOfPower.WATT
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_extra_state_attributes = {
+            "start_threshold": config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS),
+            "stop_threshold": config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS),
+            "running_state": False,
+            "power_sensor": config_entry.data[CONF_POWER_SENSOR],
+            "last_update": None,
+        }
+
+    @property
+    def native_value(self) -> float:
+        """Return the current power usage."""
+        if self.coordinator.data is None:
+            return 0.0
+        return self.coordinator.data.power_state
+
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if self.coordinator.data is None:
+            return self._attr_extra_state_attributes
+
+        data = self.coordinator.data
+        self._attr_extra_state_attributes.update({
+            "running_state": data.is_running,
+            "last_update": data.formatted_last_update,
+        })
+        return self._attr_extra_state_attributes
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
+
+class SmartDumbApplianceDurationSensor(SensorEntity):
+    """Sensor for tracking appliance cycle duration."""
+
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the duration sensor."""
+        super().__init__()
+        self.coordinator = coordinator
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Duration"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_duration"
+        self._attr_device_class = None
+        self._attr_native_unit_of_measurement = None
+        self._attr_icon = "mdi:timer"
+
+    @property
+    def native_value(self) -> timedelta | None:
+        """Return the current Cycle duration."""
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.cycle_duration
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if not self.coordinator.data:
+            return {
+                "current_cycle_duration": None,
+                "previous_cycle_duration": "0:00:00",
+                "total_duration": "0:00:00",
+                "last_update": None,
+            }
+            
+        data = self.coordinator.data
+        return {
+            "current_cycle_duration": data.formatted_cycle_duration,
+            "previous_cycle_duration": data.formatted_last_cycle_duration,
+            "total_duration": data.formatted_total_duration,
+            "last_update": data.formatted_last_update,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
+
+class SmartDumbApplianceEnergySensor(SensorEntity):
+    """Sensor representing the cycle energy usage of a smart dumb appliance."""
+
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the cycle energy sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Energy"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_energy"
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_extra_state_attributes = {
+            "current_cycle_energy": 0.0,
+            "previous_cycle_energy": 0.0,
+            "total_energy": 0.0,
+            "last_update": None,
+        }
+
+    @property
+    def native_value(self) -> float:
+        """Return the current cycle energy usage."""
+        if self.coordinator.data is None:
+            return 0.0
+        return self.coordinator.data.cycle_energy
+
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if self.coordinator.data is None:
+            return self._attr_extra_state_attributes
+
+        data = self.coordinator.data
+        self._attr_extra_state_attributes.update({
+            "current_cycle_energy": data.cycle_energy,
+            "previous_cycle_energy": data.previous_cycle_energy,
+            "total_energy": data.total_energy,
+            "last_update": data.formatted_last_update,
+        })
+        return self._attr_extra_state_attributes
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state)
+
+class SmartDumbApplianceCostSensor(SensorEntity):
+    """Sensor representing the cycle cost of a smart dumb appliance."""
+
+    def __init__(
+        self,
+        coordinator: SmartDumbApplianceCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the cycle cost sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Cost"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_cost"
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_native_unit_of_measurement = "USD"
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_icon = "mdi:currency-usd"
+        self._attr_extra_state_attributes = {
+            "current_cycle_cost": 0.0,
+            "previous_cycle_cost": 0.0,
+            "total_cost": 0.0,
+            "last_update": None,
+        }
+
+    @property
+    def native_value(self) -> float:
+        """Return the current cycle cost."""
+        if self.coordinator.data is None:
+            return 0.0
+        return self.coordinator.data.cycle_cost
+
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        if self.coordinator.data is None:
+            return self._attr_extra_state_attributes
+
+        data = self.coordinator.data
+        self._attr_extra_state_attributes.update({
+            "current_cycle_cost": data.cycle_cost,
+            "previous_cycle_cost": data.previous_cycle_cost,
+            "total_cost": data.total_cost,
+            "last_update": data.formatted_last_update,
+        })
+        return self._attr_extra_state_attributes
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Run when entity will be removed from hass."""
+        self.coordinator.async_remove_listener(self.async_write_ha_state) 
