@@ -220,11 +220,14 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 if self._last_cycle_end_time != self._end_time:
                     self._previous_cycle_energy = self._cycle_energy
                     self._previous_cycle_cost = self._cycle_cost
+                    self._last_cycle_duration = current_duration
+                    self._total_duration += current_duration
                     self._last_cycle_end_time = self._end_time
                     _LOGGER.debug(
-                        "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f",
+                        "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f, Duration: %s",
                         self._previous_cycle_energy,
-                        self._previous_cycle_cost
+                        self._previous_cycle_cost,
+                        self._last_cycle_duration
                     )
                 
                 _LOGGER.debug(
@@ -261,8 +264,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 last_power=self._last_power,
                 last_power_time=self._last_power_time,
                 cycle_duration=current_duration if is_on else None,
-                last_cycle_duration=current_duration if not is_on else None,
-                total_duration=self._total_duration + current_duration,
+                last_cycle_duration=self._last_cycle_duration,
+                total_duration=self._total_duration,
                 service_status="ok" if is_on else "disabled",
                 service_reminder_enabled=False,
                 service_reminder_message="",

@@ -1,3 +1,9 @@
+# Note for AI Assistants
+
+This `PRIMER.md` document serves as the primary source of truth and "bible" for the Smart Dumb Appliance integration. It outlines the core design principles, technical architecture, development guidelines, and expected behavior.
+
+**When assisting with code changes or generating new code for this repository, please strictly adhere to the information, patterns, and guidelines detailed within this document.** Ensure that all contributions are consistent with the described architecture, particularly the separation of concerns between the coordinator (handling calculations) and sensors (reading data). Refer back to this document frequently to maintain consistency and correctness.
+
 # Smart Dumb Appliance Integration Primer
 
 ## Overview
@@ -80,27 +86,25 @@ Attributes:
 - Last update timestamps
 
 
-## Configuration Options
+## Current Configuration
 
-### Required Settings
-- Device Name
-- Power Sensor Entity ID
+### Configuration Options
+- **Required Settings**
+  - `device_name`: Name of the appliance
+  - `power_sensor`: Entity ID of the power sensor
+- **Optional Settings**
+  - `cost_sensor`: Entity ID of the cost sensor
+  - `start_watts`: Start wattage threshold
+  - `stop_watts`: Stop wattage threshold
+  - `debounce`: Debounce period
+  - `service_reminder`: Service reminder settings
+    - `enabled`: True/False
+    - `count`: Usage count threshold
+    - `message`: Reminder message
 
-### Optional Settings
-- Cost Sensor Entity ID
-- Start Watts Threshold
-- Stop Watts Threshold
-- Dead Zone
-- Debounce Period
-- Service Reminder Settings
-  - Enabled/Disabled
-  - Usage Count Threshold
-  - Reminder Message
-
-## Default Values
+### Default Values
 - Start Watts: 10W
 - Stop Watts: 5W
-- Dead Zone: 2W
 - Debounce: 5 seconds
 - Service Reminder Count: 30 uses
 
@@ -171,74 +175,106 @@ service_reminder:
 2. More detailed energy analytics
 5. Enhanced visualization options
 
+## Development Guidelines
+
+### Coordinator Responsibility
+- **Centralized Calculations**: All state calculations, energy tracking, cost calculations, duration tracking, and service status logic MUST be handled within the `SmartDumbApplianceCoordinator`.
+- **Sensor Role**: Sensors should ONLY read data directly from the coordinator's `data` attribute. Sensors should not perform any independent calculations or maintain their own state beyond what's provided by the coordinator.
+
+### Commenting Code
+- **Docstrings**: Use clear and concise docstrings for all classes and methods, explaining their purpose, arguments, and return values.
+- **Complex Logic**: Add comments to explain complex algorithms, non-obvious logic, or potential edge cases.
+- **User-Friendly**: Write comments that are easy for other developers (and future you) to understand. Avoid jargon where possible and explain the 'why' behind the code, not just the 'what'.
+- **Keep Updated**: Ensure comments are kept up-to-date when code logic changes.
+
+### Adding New Features
+1. Extend `SmartDumbApplianceBase` for new sensor types if needed.
+2. Update the coordinator's `ApplianceData` dataclass and calculation logic to include new data points.
+3. Add appropriate logging for new features (see Debugging section).
+4. Update documentation (`PRIMER.md`, docstrings) to reflect new features.
+
+### Modifying Existing Features
+1. **Coordinator First**: Make necessary changes to calculations or state logic within the `SmartDumbApplianceCoordinator`.
+2. **Sensor Updates**: Update sensors only if they need to access new data points from the coordinator or change how they display existing data.
+3. **Impact Review**: Review the impact on all sensors and the overall state management.
+4. **Logging**: Maintain logging consistency across changes.
+5. **Documentation**: Update documentation (`PRIMER.md`, docstrings) to reflect modifications.
+
+### Debugging
+1. Enable debug logging in Home Assistant's `configuration.yaml` for `custom_components.smart_dumb_appliance` to trace state changes and calculations.
+2. Monitor coordinator updates and sensor processing in the logs.
+3. Review state transitions and error conditions.
+
 ## Technical Architecture
 
 ### Data Flow
-1. Power Sensor → Coordinator
-   - Coordinator subscribes to power sensor changes
-   - Processes power readings to determine appliance state
-   - Calculates energy usage and timing information
-   - Maintains running state and use count
+1. **Power Sensor → Coordinator**
+   - The coordinator subscribes to power sensor changes.
+   - Processes power readings to determine appliance state.
+   - Calculates energy usage and timing information.
+   - Maintains running state and use count.
 
-2. Coordinator → Sensors
-   - Coordinator provides data to all sensors
-   - Sensors receive updates through async_update()
+2. **Coordinator → Sensors**
+   - The coordinator provides data to all sensors.
+   - Sensors receive updates through `async_update()`.
    - Each sensor type processes data differently:
-     - Current Power: Direct power reading
-     - Cumulative Energy: Energy calculations
-     - Service Status: Use count and maintenance tracking
+     - **Current Power**: Direct power reading
+     - **Cumulative Energy**: Energy calculations
+     - **Service Status**: Use count and maintenance tracking
 
 ### Key Classes
-1. SmartDumbApplianceCoordinator
-   - Manages data updates and state tracking
-   - Handles power sensor subscriptions
-   - Calculates running state and energy usage
-   - Provides data to all sensors
+1. **SmartDumbApplianceCoordinator**
+   - Manages data updates and state tracking.
+   - Handles power sensor subscriptions.
+   - Calculates running state and energy usage.
+   - Provides data to all sensors.
 
-2. SmartDumbApplianceBase
-   - Base class for all sensors
-   - Handles common initialization and updates
-   - Manages icon and color updates
-   - Provides shared attributes and methods
+2. **SmartDumbApplianceBase**
+   - Base class for all sensors.
+   - Handles common initialization and updates.
+   - Manages icon and color updates.
+   - Provides shared attributes and methods.
 
-3. Sensor Types
-   - SmartDumbApplianceCurrentPowerSensor
-   - SmartDumbApplianceCumulativeEnergySensor
-   - SmartDumbApplianceServiceSensor
-   - SmartDumbApplianceBinarySensor
+3. **Sensor Types**
+   - `SmartDumbApplianceBinarySensor`
+   - `SmartDumbApplianceServiceSensor`
+   - `SmartDumbApplianceCurrentPowerSensor`
+   - `SmartDumbApplianceDurationSensor`
+   - `SmartDumbApplianceEnergySensor`
+   - `SmartDumbApplianceCostSensor`
 
 ### State Management
-1. Coordinator State
-   - power_state: Current power reading
-   - is_running: Appliance running state
-   - start_time: Cycle start timestamp
-   - end_time: Cycle end timestamp
-   - use_count: Total usage cycles
-   - cycle_energy: Current cycle energy
-   - cycle_cost: Current cycle cost
+1. **Coordinator State**
+   - `power_state`: Current power reading
+   - `is_running`: Appliance running state
+   - `start_time`: Cycle start timestamp
+   - `end_time`: Cycle end timestamp
+   - `use_count`: Total usage cycles
+   - `cycle_energy`: Current cycle energy
+   - `cycle_cost`: Current cycle cost
 
-2. Sensor State
-   - native_value: Primary sensor value
-   - extra_state_attributes: Additional data
-   - icon: Current display icon
-   - entity_picture: Colored icon image
+2. **Sensor State**
+   - `native_value`: Primary sensor value
+   - `extra_state_attributes`: Additional data
+   - `icon`: Current display icon
+   - `entity_picture`: Colored icon image
 
 ### Debug Logging
 The integration provides extensive debug logging at key points:
 
-1. Coordinator Logging
+1. **Coordinator Logging**
    - Power sensor state changes
    - Running state transitions
    - Energy calculations
    - Update timing information
 
-2. Sensor Logging
+2. **Sensor Logging**
    - Update receipt from coordinator
    - State changes
    - Energy calculations
    - Service status changes
 
-3. Binary Sensor Logging
+3. **Binary Sensor Logging**
    - State transitions
    - Power readings
    - Timing information
@@ -268,26 +304,6 @@ The integration provides extensive debug logging at key points:
    - Check service reminder settings
    - Review service status logic
    - Check service sensor logs
-
-### Development Guidelines
-
-1. Adding New Features
-   - Extend SmartDumbApplianceBase
-   - Update coordinator data structure
-   - Add appropriate logging
-   - Update documentation
-
-2. Modifying Existing Features
-   - Review coordinator impact
-   - Update all affected sensors
-   - Maintain logging consistency
-   - Update documentation
-
-3. Debugging
-   - Enable debug logging
-   - Monitor coordinator updates
-   - Check sensor processing
-   - Review state transitions
 
 ### Testing
 1. Manual Testing
