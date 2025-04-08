@@ -85,8 +85,13 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self.hass = hass
         self.config_entry = config_entry
         self.coordinator = coordinator
-        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Power State"
-        self._attr_unique_id = f"{self._attr_name.lower().replace(' ', '_')}_power_state"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Power State"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_power_state"
         self._attr_device_class = BinarySensorDeviceClass.POWER
         self._attr_has_entity_name = True
         self._attr_translation_key = "power_state"
@@ -137,6 +142,13 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         """Return True if the coordinator is available."""
         return self.coordinator.last_update_success
 
+    @property
+    def is_on(self) -> bool:
+        """Return True if the appliance is running."""
+        if self.coordinator.data is None:
+            return False
+        return self.coordinator.data.is_running
+
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
@@ -147,38 +159,7 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if not self.coordinator.last_update_success:
-            _LOGGER.debug(
-                "Binary sensor %s update skipped - coordinator update not successful",
-                self._attr_name
-            )
-            return
-
-        data = self.coordinator.data
-        if data is None:
-            _LOGGER.debug(
-                "Binary sensor %s update skipped - no data available from coordinator",
-                self._attr_name
-            )
-            return
-
-        # Log the incoming data
-        _LOGGER.debug(
-            "Binary sensor %s received update - Power: %.1fW (%.3f kW), Running: %s, "
-            "Start time: %s, End time: %s, Use count: %d",
-            self._attr_name,
-            data.power_state,
-            data.power_kw,
-            data.is_running,
-            data.start_time,
-            data.end_time,
-            data.use_count
-        )
-
-        # Update the state using _update_entity_state
-        self._update_entity_state(data)
-        
-        # Write state to HA
+        self._update_entity_state(self.coordinator.data)
         self.async_write_ha_state()
 
     def _update_entity_state(self, data: Any) -> None:

@@ -292,13 +292,11 @@ async def async_setup_entry(
     
     # Create all sensors
     sensors = [
-        SmartDumbApplianceBinarySensor(coordinator, config_entry),
         SmartDumbApplianceServiceSensor(coordinator, config_entry),
         SmartDumbAppliancePowerSensor(coordinator, config_entry),
         SmartDumbApplianceDurationSensor(coordinator, config_entry),
         SmartDumbApplianceEnergySensor(coordinator, config_entry),
         SmartDumbApplianceCostSensor(coordinator, config_entry),
-        SmartDumbApplianceCycleStateSensor(coordinator, config_entry),
     ]
     
     async_add_entities(sensors)
@@ -372,8 +370,13 @@ class SmartDumbApplianceServiceSensor(SensorEntity):
         """Initialize the service status sensor."""
         self.coordinator = coordinator
         self.config_entry = config_entry
-        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Service Status"
-        self._attr_unique_id = f"{config_entry.entry_id}_service_sensor"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Service Status"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_service_status"
         self._attr_icon = "mdi:wrench"
         self._attr_extra_state_attributes = {
             "cycle_count": 0,
@@ -429,8 +432,13 @@ class SmartDumbAppliancePowerSensor(SensorEntity):
         """Initialize the current power sensor."""
         self.coordinator = coordinator
         self.config_entry = config_entry
-        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Current Power"
-        self._attr_unique_id = f"{config_entry.entry_id}_power_sensor"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Current Power"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_current_power"
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -482,8 +490,13 @@ class SmartDumbApplianceDurationSensor(SensorEntity):
         """Initialize the duration sensor."""
         super().__init__()
         self.coordinator = coordinator
-        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle Duration"
-        self._attr_unique_id = f"{config_entry.entry_id}_duration_sensor"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Duration"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_duration"
         self._attr_device_class = None
         self._attr_native_unit_of_measurement = None
         self._attr_icon = "mdi:timer"
@@ -533,8 +546,13 @@ class SmartDumbApplianceEnergySensor(SensorEntity):
         """Initialize the cycle energy sensor."""
         self.coordinator = coordinator
         self.config_entry = config_entry
-        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle Energy"
-        self._attr_unique_id = f"{config_entry.entry_id}_energy_sensor"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Energy"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_energy"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -587,8 +605,13 @@ class SmartDumbApplianceCostSensor(SensorEntity):
         """Initialize the cycle cost sensor."""
         self.coordinator = coordinator
         self.config_entry = config_entry
-        self._attr_name = f"{config_entry.data.get('name', 'Smart Dumb Appliance')} Cycle Cost"
-        self._attr_unique_id = f"{config_entry.entry_id}_cost_sensor"
+        
+        # Get device name from config
+        device_name = config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')
+        
+        # Set up entity attributes
+        self._attr_name = f"{device_name} Cycle Cost"
+        self._attr_unique_id = f"{device_name.lower().replace(' ', '_')}_cycle_cost"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_native_unit_of_measurement = "USD"
         self._attr_state_class = SensorStateClass.TOTAL
@@ -621,63 +644,6 @@ class SmartDumbApplianceCostSensor(SensorEntity):
             "last_update": data.formatted_last_update,
         })
         return self._attr_extra_state_attributes
-
-    async def async_added_to_hass(self) -> None:
-        """Run when entity about to be added to hass."""
-        self.coordinator.async_add_listener(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
-
-class SmartDumbApplianceCycleStateSensor(SensorEntity):
-    """Sensor representing the cycle state of a smart dumb appliance."""
-
-    def __init__(
-        self,
-        coordinator: SmartDumbApplianceCoordinator,
-        config_entry: ConfigEntry,
-    ) -> None:
-        """Initialize the cycle state sensor."""
-        super().__init__()
-        self.coordinator = coordinator
-        self._attr_name = f"{config_entry.data.get(CONF_DEVICE_NAME, 'Smart Dumb Appliance')} Cycle State"
-        self._attr_unique_id = f"{config_entry.entry_id}_cycle_state_sensor"
-        self._attr_device_class = SensorDeviceClass.POWER
-        self._attr_native_unit_of_measurement = UnitOfPower.WATT
-        self._attr_icon = "mdi:power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the current power reading."""
-        if not self.coordinator.data:
-            return None
-        return self.coordinator.data.power_state
-
-    @property
-    def extra_state_attributes(self):
-        """Return additional attributes."""
-        if not self.coordinator.data:
-            return {
-                "current_power": None,
-                "start_time": None,
-                "end_time": None,
-                "cycle_duration": "0:00:00",
-                "cycle_energy": 0.0,
-                "cycle_cost": 0.0,
-                "last_update": None,
-            }
-            
-        data = self.coordinator.data
-        return {
-            "current_power": data.power_state,
-            "start_time": data.formatted_start_time,
-            "end_time": data.formatted_end_time,
-            "cycle_duration": data.formatted_cycle_duration,
-            "cycle_energy": data.cycle_energy,
-            "cycle_cost": data.cycle_cost,
-            "last_update": data.formatted_last_update,
-        }
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
