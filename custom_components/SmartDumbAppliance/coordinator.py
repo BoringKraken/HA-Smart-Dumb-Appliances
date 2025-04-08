@@ -112,6 +112,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_power = 0.0
         self._last_power_time = None
         self._last_cycle_end_time = None
+        self._last_cycle_duration = None
         self._total_duration = timedelta(0)
         self.data = None
 
