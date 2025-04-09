@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 import asyncio
 
 from homeassistant.config_entries import ConfigEntry
@@ -390,8 +390,37 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     async def async_shutdown(self) -> None:
         """Clean up resources."""
+        _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
+        
+        # Unsubscribe from state changes
         if self._unsubscribe:
-            self._unsubscribe()
+            try:
+                self._unsubscribe()
+            except ValueError:
+                # Ignore errors if the listener was already removed
+                _LOGGER.debug("Listener already removed for %s", self._power_sensor)
+            self._unsubscribe = None
+        
+        # Clear all state
+        self._start_time = None
+        self._end_time = None
+        self._use_count = 0
+        self._cycle_energy = 0.0
+        self._previous_cycle_energy = 0.0
+        self._total_energy = 0.0
+        self._cycle_cost = 0.0
+        self._previous_cycle_cost = 0.0
+        self._total_cost = 0.0
+        self._was_on = False
+        self._last_power = 0.0
+        self._last_power_time = None
+        self._last_cycle_end_time = None
+        self._last_cycle_duration = None
+        self._total_duration = timedelta(0)
+        self.data = None
+        self._initialized = False
+        
+        # Stop the update interval
         await super().async_shutdown()
 
     @callback
@@ -433,4 +462,12 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         Returns:
             ApplianceData: The updated appliance data
         """
-        return await self._async_update_data() 
+        return await self._async_update_data()
+
+    def async_add_listener(self, update_callback: Callable[[], None]) -> Callable[[], None]:
+        """Listen for data updates."""
+        return super().async_add_listener(update_callback)
+
+    def async_remove_listener(self, update_callback: Callable[[], None]) -> None:
+        """Remove listener from data updates."""
+        super().async_remove_listener(update_callback) 

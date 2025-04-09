@@ -357,7 +357,11 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err)
 
 class SmartDumbApplianceServiceSensor(SensorEntity):
     """Sensor representing the service status of a smart dumb appliance."""
@@ -419,7 +423,11 @@ class SmartDumbApplianceServiceSensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err)
 
 class SmartDumbAppliancePowerSensor(SensorEntity):
     """Sensor representing the current power usage of a smart dumb appliance."""
@@ -477,7 +485,11 @@ class SmartDumbAppliancePowerSensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err)
 
 class SmartDumbApplianceDurationSensor(SensorEntity):
     """Sensor for tracking appliance cycle duration."""
@@ -533,7 +545,11 @@ class SmartDumbApplianceDurationSensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err)
 
 class SmartDumbApplianceEnergySensor(SensorEntity):
     """Sensor representing the cycle energy usage of a smart dumb appliance."""
@@ -592,7 +608,11 @@ class SmartDumbApplianceEnergySensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err)
 
 class SmartDumbApplianceCostSensor(SensorEntity):
     """Sensor representing the cycle cost of a smart dumb appliance."""
@@ -651,4 +671,8 @@ class SmartDumbApplianceCostSensor(SensorEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Run when entity will be removed from hass."""
-        self.coordinator.async_remove_listener(self.async_write_ha_state) 
+        try:
+            if hasattr(self, 'coordinator') and self.coordinator is not None:
+                self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as err:
+            _LOGGER.debug("Error removing listener: %s", err) 

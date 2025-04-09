@@ -80,12 +80,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
     
+    # Get the coordinator
+    coordinator = hass.data[DOMAIN].get(entry.entry_id)
+    if coordinator:
+        # Shutdown the coordinator first
+        await coordinator.async_shutdown()
+    
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     
     if unload_ok:
-        # Remove coordinator
-        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.async_shutdown()
+        # Remove coordinator from hass.data
+        hass.data[DOMAIN].pop(entry.entry_id)
+        
+        # If this was the last entry, remove the domain
+        if not hass.data[DOMAIN]:
+            hass.data.pop(DOMAIN)
     
     return unload_ok
