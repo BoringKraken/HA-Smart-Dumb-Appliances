@@ -123,6 +123,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
         # Store the unsubscribe callback
         self._unsubscribe = None
+        # Store listeners
+        self._listeners = []
 
     def _calculate_interval_energy(self, current_power: float, current_time: datetime) -> float:
         """
@@ -392,6 +394,9 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         """Clean up resources."""
         _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
         
+        # Clear all listeners
+        self._listeners.clear()
+        
         # Unsubscribe from state changes
         if self._unsubscribe:
             try:
@@ -466,8 +471,54 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     def async_add_listener(self, update_callback: Callable[[], None]) -> Callable[[], None]:
         """Listen for data updates."""
-        return super().async_add_listener(update_callback)
+        self._listeners.append(update_callback)
+        return lambda: self._listeners.remove(update_callback)
 
     def async_remove_listener(self, update_callback: Callable[[], None]) -> None:
         """Remove listener from data updates."""
-        super().async_remove_listener(update_callback) 
+        if update_callback in self._listeners:
+            self._listeners.remove(update_callback)
+
+    def async_set_updated_data(self, data: ApplianceData) -> None:
+        """Set updated data and notify listeners."""
+        self.data = data
+        for listener in self._listeners:
+            listener()
+
+    async def async_shutdown(self) -> None:
+        """Clean up resources."""
+        _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
+        
+        # Clear all listeners
+        self._listeners.clear()
+        
+        # Unsubscribe from state changes
+        if self._unsubscribe:
+            try:
+                self._unsubscribe()
+            except ValueError:
+                # Ignore errors if the listener was already removed
+                _LOGGER.debug("Listener already removed for %s", self._power_sensor)
+            self._unsubscribe = None
+        
+        # Clear all state
+        self._start_time = None
+        self._end_time = None
+        self._use_count = 0
+        self._cycle_energy = 0.0
+        self._previous_cycle_energy = 0.0
+        self._total_energy = 0.0
+        self._cycle_cost = 0.0
+        self._previous_cycle_cost = 0.0
+        self._total_cost = 0.0
+        self._was_on = False
+        self._last_power = 0.0
+        self._last_power_time = None
+        self._last_cycle_end_time = None
+        self._last_cycle_duration = None
+        self._total_duration = timedelta(0)
+        self.data = None
+        self._initialized = False
+        
+        # Stop the update interval
+        await super().async_shutdown() 
