@@ -123,8 +123,6 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
         # Store the unsubscribe callback
         self._unsubscribe = None
-        # Store listeners
-        self._listeners = []
 
     def _calculate_interval_energy(self, current_power: float, current_time: datetime) -> float:
         """
@@ -394,9 +392,6 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         """Clean up resources."""
         _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
         
-        # Clear all listeners
-        self._listeners.clear()
-        
         # Unsubscribe from state changes
         if self._unsubscribe:
             try:
@@ -471,26 +466,20 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     def async_add_listener(self, update_callback: Callable[[], None]) -> Callable[[], None]:
         """Listen for data updates."""
-        self._listeners.append(update_callback)
-        return lambda: self._listeners.remove(update_callback)
+        return super().async_add_listener(update_callback)
 
     def async_remove_listener(self, update_callback: Callable[[], None]) -> None:
         """Remove listener from data updates."""
-        if update_callback in self._listeners:
-            self._listeners.remove(update_callback)
+        super().async_remove_listener(update_callback)
 
     def async_set_updated_data(self, data: ApplianceData) -> None:
         """Set updated data and notify listeners."""
         self.data = data
-        for listener in self._listeners:
-            listener()
+        self.async_update_listeners()
 
     async def async_shutdown(self) -> None:
         """Clean up resources."""
         _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
-        
-        # Clear all listeners
-        self._listeners.clear()
         
         # Unsubscribe from state changes
         if self._unsubscribe:
