@@ -356,12 +356,14 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err)
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass()
 
 class SmartDumbApplianceServiceSensor(SensorEntity):
     """Sensor representing the service status of a smart dumb appliance."""
@@ -422,12 +424,14 @@ class SmartDumbApplianceServiceSensor(SensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err)
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass()
 
 class SmartDumbAppliancePowerSensor(SensorEntity):
     """Sensor representing the current power usage of a smart dumb appliance."""
@@ -484,12 +488,14 @@ class SmartDumbAppliancePowerSensor(SensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err)
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass()
 
 class SmartDumbApplianceDurationSensor(SensorEntity):
     """Sensor for tracking appliance cycle duration."""
@@ -544,12 +550,14 @@ class SmartDumbApplianceDurationSensor(SensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err)
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass()
 
 class SmartDumbApplianceEnergySensor(SensorEntity):
     """Sensor representing the cycle energy usage of a smart dumb appliance."""
@@ -607,12 +615,14 @@ class SmartDumbApplianceEnergySensor(SensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err)
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass()
 
 class SmartDumbApplianceCostSensor(SensorEntity):
     """Sensor representing the cycle cost of a smart dumb appliance."""
@@ -670,9 +680,11 @@ class SmartDumbApplianceCostSensor(SensorEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Handle removal from Home Assistant."""
+        _LOGGER.debug("Removing sensor: %s", self.entity_id)
         try:
-            if hasattr(self, 'coordinator') and self.coordinator is not None:
-                self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except Exception as err:
-            _LOGGER.debug("Error removing listener: %s", err) 
+            if self.coordinator and hasattr(self.coordinator, 'async_remove_listener'):
+                await self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except Exception as e:
+            _LOGGER.debug("Error removing listener: %s", str(e))
+        await super().async_will_remove_from_hass() 
