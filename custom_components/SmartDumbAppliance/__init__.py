@@ -55,6 +55,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Dumb Appliance from a config entry."""
     _LOGGER.info("Setting up entry: %s", entry.entry_id)
     
+    # Verify required configuration
+    if not entry.data.get(CONF_POWER_SENSOR):
+        _LOGGER.error("Required power sensor not configured for entry: %s", entry.entry_id)
+        return False
+    
     # Create the coordinator
     coordinator = SmartDumbApplianceCoordinator(hass, entry)
     
@@ -76,4 +81,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Unloading entry: %s", entry.entry_id)
     
     # Unload platforms
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    if unload_ok:
+        # Remove coordinator
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.async_shutdown()
+    
+    return unload_ok

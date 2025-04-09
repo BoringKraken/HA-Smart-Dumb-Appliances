@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
+import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,6 +19,9 @@ from .const import (
     CONF_STOP_WATTS,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
+    CONF_SERVICE_REMINDER,
+    CONF_SERVICE_REMINDER_MESSAGE,
+    CONF_SERVICE_REMINDER_COUNT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,7 +93,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=f"{config_entry.data.get('name', 'Smart Dumb Appliance')}_coordinator",
             update_method=self._async_update_data,
-            update_interval=timedelta(seconds=30),  # Poll every 30 seconds as backup
+            update_interval=timedelta(seconds=1),  # Regular update interval
         )
         
         self.config_entry = config_entry
@@ -115,6 +119,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_cycle_duration = None
         self._total_duration = timedelta(0)
         self.data = None
+        self._initialized = False
 
         # Store the unsubscribe callback
         self._unsubscribe = None
@@ -171,9 +176,44 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             power_state = self.hass.states.get(self._power_sensor)
             if power_state is None:
                 _LOGGER.warning("Power sensor %s not found", self._power_sensor)
-                raise UpdateFailed("Power sensor not found")
+                # Return current data if available to maintain state persistence
+                if self.data:
+                    return self.data
+                # Create empty data if no previous state exists
+                return ApplianceData(
+                    last_update=dt_util.utcnow(),
+                    power_state=0.0,
+                    power_kw=0.0,
+                    is_running=False,
+                    start_time=None,
+                    end_time=None,
+                    use_count=self._use_count if hasattr(self, '_use_count') else 0,
+                    cycle_energy=0.0,
+                    previous_cycle_energy=self._previous_cycle_energy if hasattr(self, '_previous_cycle_energy') else 0.0,
+                    total_energy=self._total_energy if hasattr(self, '_total_energy') else 0.0,
+                    cycle_cost=0.0,
+                    previous_cycle_cost=self._previous_cycle_cost if hasattr(self, '_previous_cycle_cost') else 0.0,
+                    total_cost=self._total_cost if hasattr(self, '_total_cost') else 0.0,
+                    last_power=0.0,
+                    last_power_time=None,
+                    cycle_duration=None,
+                    last_cycle_duration=self._last_cycle_duration if hasattr(self, '_last_cycle_duration') else None,
+                    total_duration=self._total_duration if hasattr(self, '_total_duration') else timedelta(0),
+                    service_status="disabled",
+                    service_reminder_enabled=self.config_entry.data.get(CONF_SERVICE_REMINDER, False),
+                    service_reminder_message=self.config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, ""),
+                    service_reminder_count=self.config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, 0),
+                    remaining_cycles=max(0, self.config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, 0) - (self._use_count if hasattr(self, '_use_count') else 0))
+                )
 
-            current_power = float(power_state.state)
+            try:
+                current_power = float(power_state.state)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid power reading from sensor %s: %s", self._power_sensor, power_state.state)
+                if self.data:
+                    return self.data
+                raise UpdateFailed("Invalid power reading")
+
             current_time = dt_util.utcnow()
             power_kw = current_power / 1000  # Convert to kilowatts
 
@@ -268,10 +308,10 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 last_cycle_duration=self._last_cycle_duration,
                 total_duration=self._total_duration,
                 service_status="ok" if is_on else "disabled",
-                service_reminder_enabled=False,
-                service_reminder_message="",
-                service_reminder_count=0,
-                remaining_cycles=0
+                service_reminder_enabled=self.config_entry.data.get(CONF_SERVICE_REMINDER, False),
+                service_reminder_message=self.config_entry.data.get(CONF_SERVICE_REMINDER_MESSAGE, ""),
+                service_reminder_count=self.config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, 0),
+                remaining_cycles=max(0, self.config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, 0) - self._use_count)
             )
             
             _LOGGER.debug(
@@ -300,15 +340,53 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
-        # Subscribe to power sensor changes
-        self._unsubscribe = async_track_state_change_event(
-            self.hass,
-            self._power_sensor,
-            self._async_power_sensor_changed
-        )
-        
-        # Initial data fetch
-        await self.async_request_refresh()
+        if not self._initialized:
+            # Add startup delay only for initial setup
+            await asyncio.sleep(10)  # 10 second delay
+            
+            # Subscribe to power sensor changes
+            self._unsubscribe = async_track_state_change_event(
+                self.hass,
+                self._power_sensor,
+                self._async_power_sensor_changed
+            )
+            
+            # Initial data fetch with retry
+            retry_count = 0
+            max_retries = 3
+            retry_delay = 5  # seconds
+            
+            while retry_count < max_retries:
+                try:
+                    await self.async_request_refresh()
+                    if self.data is not None:
+                        _LOGGER.info("Successfully initialized coordinator for %s", self._power_sensor)
+                        self._initialized = True
+                        return
+                except Exception as err:
+                    _LOGGER.warning(
+                        "Attempt %d/%d failed to initialize coordinator: %s",
+                        retry_count + 1,
+                        max_retries,
+                        err
+                    )
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        await asyncio.sleep(retry_delay)
+            
+            _LOGGER.error(
+                "Failed to initialize coordinator for %s after %d attempts",
+                self._power_sensor,
+                max_retries
+            )
+        else:
+            # If already initialized, just ensure we're subscribed to updates
+            if not self._unsubscribe:
+                self._unsubscribe = async_track_state_change_event(
+                    self.hass,
+                    self._power_sensor,
+                    self._async_power_sensor_changed
+                )
 
     async def async_shutdown(self) -> None:
         """Clean up resources."""

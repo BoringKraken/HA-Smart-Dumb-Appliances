@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+- [PRIMER.md](mdc:PRIMER.md) should be used as your Rule Book / Guidelines for every interaction that changes code.
+
