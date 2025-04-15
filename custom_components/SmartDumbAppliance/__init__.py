@@ -72,8 +72,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Update the config entry
         hass.config_entries.async_update_entry(entry, data=config)
     
-    # Create the coordinator
-    coordinator = SmartDumbApplianceCoordinator(hass, config)
+    # Create the coordinator with the ConfigEntry object
+    coordinator = SmartDumbApplianceCoordinator(hass, entry)
     
     # Store the coordinator in hass.data
     if DOMAIN not in hass.data:

@@ -22,6 +22,7 @@ Secondary focus is on improving the initialization process to handle dependencie
 - Implementation of separate start and end debounce timers
 - Migration from single debounce to dual debounce configuration
 - Fine-tuning of default debounce values
+- Updating binary sensor to use new debounce configuration
 
 ## Recent Changes
 
@@ -55,6 +56,8 @@ Secondary focus is on improving the initialization process to handle dependencie
 - Updated configuration UI to support independent debounce settings
 - Removed Final type hints from configurable constants
 - Enhanced coordinator state tracking for debounce conditions
+- Updated binary sensor to use new debounce configuration
+- Added debounce values to binary sensor attributes
 
 ## Next Steps
 
@@ -97,23 +100,7 @@ Secondary focus is on improving the initialization process to handle dependencie
 4. **Performance Impact**: Balancing feature richness with performance impact
 
 ### Debounce Timer Decisions
-1. **Debounce Timer Separation**
-   - Start debounce: 5 seconds (quick detection)
-   - End debounce: 15 seconds (conservative detection)
-   - Rationale: Quick start detection for responsiveness, longer end detection to handle power dips
-
-2. **Migration Strategy**
-   - Using old debounce value for both start and end during migration
-   - Automatic config entry update to new format
-   - Logging of migration process for debugging
-
-3. **Configuration Approach**
-   - Separate UI controls for start and end debounce
-   - Configurable range: 0-300 seconds
-   - Clear tooltips explaining purpose of each timer
-
-## Next Steps
-1. Monitor performance of new debounce settings
-2. Gather user feedback on default values
-3. Consider adding appliance-specific default debounce profiles
-4. Document new debounce configuration in user guide 
+1. **Separate Start/End Timers**: Using different debounce times for start (5s) and end (15s) conditions
+2. **Migration Strategy**: Preserving existing debounce values during migration
+3. **Configuration UI**: Providing clear controls for both debounce settings
+4. **Default Values**: Using conservative defaults that can be adjusted by users 

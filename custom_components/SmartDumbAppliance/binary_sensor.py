@@ -24,10 +24,12 @@ from .const import (
     CONF_POWER_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
-    CONF_DEBOUNCE,
+    CONF_START_DEBOUNCE,
+    CONF_END_DEBOUNCE,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    DEFAULT_DEBOUNCE,
+    DEFAULT_START_DEBOUNCE,
+    DEFAULT_END_DEBOUNCE,
     CONF_DEVICE_NAME,
     ATTR_POWER_USAGE,
     ATTR_LAST_UPDATE,
@@ -100,7 +102,8 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
         self._power_sensor = config_entry.data[CONF_POWER_SENSOR]
         self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
         self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
-        self._debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        self._start_debounce = config_entry.data.get(CONF_START_DEBOUNCE, DEFAULT_START_DEBOUNCE)
+        self._end_debounce = config_entry.data.get(CONF_END_DEBOUNCE, DEFAULT_END_DEBOUNCE)
         
         # Define all possible attributes that this sensor can have
         self._attr_extra_state_attributes = {
@@ -119,17 +122,20 @@ class SmartDumbApplianceBinarySensor(BinarySensorEntity):
             # Configuration
             "start_watts": self._start_watts,
             "stop_watts": self._stop_watts,
-            "debounce": self._debounce,
+            "start_debounce": self._start_debounce,
+            "end_debounce": self._end_debounce,
             "power_sensor": self._power_sensor,
         }
 
         # Log initialization
         _LOGGER.info(
-            "Initializing binary sensor %s with power sensor %s (start: %.1fW, stop: %.1fW)",
+            "Initializing binary sensor %s with power sensor %s (start: %.1fW, stop: %.1fW, start debounce: %ds, end debounce: %ds)",
             self._attr_name,
             self._power_sensor,
             self._start_watts,
-            self._stop_watts
+            self._stop_watts,
+            self._start_debounce,
+            self._end_debounce
         )
 
     @property
