@@ -29,6 +29,8 @@ from .const import (
     CONF_START_WATTS,
     CONF_STOP_WATTS,
     CONF_DEBOUNCE,
+    CONF_START_DEBOUNCE,
+    CONF_END_DEBOUNCE,
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_COUNT,
     CONF_SERVICE_REMINDER_MESSAGE,
@@ -36,6 +38,8 @@ from .const import (
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
     DEFAULT_DEBOUNCE,
+    DEFAULT_START_DEBOUNCE,
+    DEFAULT_END_DEBOUNCE,
     DEFAULT_SERVICE_REMINDER_COUNT,
 )
 from .coordinator import SmartDumbApplianceCoordinator
@@ -56,27 +60,29 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Dumb Appliance from a config entry."""
-    _LOGGER.info("Setting up entry: %s", entry.entry_id)
+    # Get the configuration data
+    config = entry.data
     
-    # Verify required configuration
-    if not entry.data.get(CONF_POWER_SENSOR):
-        _LOGGER.error("Required power sensor not configured for entry: %s", entry.entry_id)
-        return False
+    # Handle migration from old debounce to new start/end debounce
+    if CONF_DEBOUNCE in config and CONF_START_DEBOUNCE not in config:
+        _LOGGER.info("Migrating from old debounce configuration to new start/end debounce")
+        old_debounce = config[CONF_DEBOUNCE]
+        config[CONF_START_DEBOUNCE] = old_debounce
+        config[CONF_END_DEBOUNCE] = old_debounce
+        # Update the config entry
+        hass.config_entries.async_update_entry(entry, data=config)
     
     # Create the coordinator
-    coordinator = SmartDumbApplianceCoordinator(hass, entry)
+    coordinator = SmartDumbApplianceCoordinator(hass, config)
     
     # Store the coordinator in hass.data
-    hass.data.setdefault(DOMAIN, {})
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
     hass.data[DOMAIN][entry.entry_id] = coordinator
-    
-    # Set up the coordinator
-    await coordinator.async_setup()
-    await coordinator.async_config_entry_first_refresh()
     
     # Set up the platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
+    
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -127,25 +133,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Remove the coordinator from hass.data
             hass.data[DOMAIN].pop(entry.entry_id)
             
-            # If this was the last entry, remove the domain
-            if not hass.data[DOMAIN]:
-                hass.data.pop(DOMAIN)
-                
-            # Clean up any entities that might be left over from a rename
-            entities_to_remove = []
-            
-            # First collect all entities to remove
-            for entity in entity_registry.entities.values():
-                if entity.platform == DOMAIN and entity.config_entry_id == entry.entry_id:
-                    entities_to_remove.append(entity.entity_id)
-            
-            # Then remove them
-            for entity_id in entities_to_remove:
-                entity_registry.async_remove(entity_id)
-                _LOGGER.debug("Removed entity: %s", entity_id)
-        
         return unload_ok
         
     except Exception as e:
-        _LOGGER.error("Error unloading entry %s: %s", entry.entry_id, str(e))
+        _LOGGER.error("Error unloading entry: %s", str(e))
         return False

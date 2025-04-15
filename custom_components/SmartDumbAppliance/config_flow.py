@@ -25,7 +25,6 @@ from homeassistant.helpers.selector import (
     BooleanSelector,
     BooleanSelectorConfig,
 )
-from homeassistant.const import CONF_NAME
 
 from .const import (
     DOMAIN,
@@ -38,6 +37,7 @@ from .const import (
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_MESSAGE,
     CONF_SERVICE_REMINDER_COUNT,
+    CONF_DEVICE_NAME,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
     DEFAULT_START_DEBOUNCE,
@@ -103,7 +103,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not self._errors:
                 # User has submitted the form, create the configuration entry
                 return self.async_create_entry(
-                    title=user_input[CONF_NAME],
+                    title=user_input[CONF_DEVICE_NAME],
                     data=user_input
                 )
 
@@ -111,7 +111,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             # Required fields
             vol.Required(
-                CONF_NAME,
+                CONF_DEVICE_NAME,
                 default="My Appliance",
                 description={"suffix": "Name shown in Home Assistant"}
             ): str,
@@ -250,7 +250,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
         # Try to get current values from the energy usage sensor
         current_config = entry.data
-        energy_sensor_id = f"sensor.{entry.data[CONF_NAME].lower().replace(' ', '_')}_energy_usage"
+        energy_sensor_id = f"sensor.{entry.data[CONF_DEVICE_NAME].lower().replace(' ', '_')}_energy_usage"
         energy_sensor = self.hass.states.get(energy_sensor_id)
         
         if energy_sensor and energy_sensor.attributes:
@@ -277,8 +277,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="reconfigure",
                     data_schema=vol.Schema({
                         vol.Required(
-                            CONF_NAME,
-                            default=user_input.get(CONF_NAME, current_config.get(CONF_NAME)),
+                            CONF_DEVICE_NAME,
+                            default=user_input.get(CONF_DEVICE_NAME, current_config.get(CONF_DEVICE_NAME)),
                             description={"suffix": "Name shown in Home Assistant"}
                         ): str,
                         vol.Required(
@@ -404,8 +404,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema({
                 vol.Required(
-                    CONF_NAME,
-                    default=current_config.get(CONF_NAME),
+                    CONF_DEVICE_NAME,
+                    default=current_config.get(CONF_DEVICE_NAME),
                     description={"suffix": "Name shown in Home Assistant"}
                 ): str,
                 vol.Required(
