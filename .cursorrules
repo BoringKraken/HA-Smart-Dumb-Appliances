@@ -1,0 +1,116 @@
+# Smart Dumb Appliance Integration - Project Rules
+
+## Code Structure and Organization
+
+1. **Architecture Pattern**: This integration follows a coordinator-based architecture where all business logic is centralized in the SmartDumbApplianceCoordinator class. Sensors only read data from the coordinator.
+
+2. **Entity Organization**:
+   - All entity classes follow a standard naming pattern: `SmartDumbAppliance[Type]Sensor`
+   - Each entity class has a specific purpose (power, energy, duration, cost, service)
+   - The binary sensor handles the primary on/off state
+
+3. **File Structure**:
+   - `coordinator.py`: Contains all business logic and data processing
+   - `sensor.py`: Contains sensor entities that display data
+   - `binary_sensor.py`: Contains binary sensor for on/off state
+   - `__init__.py`: Handles integration setup and teardown
+   - `const.py`: Contains all constants
+   - `config_flow.py`: Handles configuration UI
+
+## Development Patterns
+
+1. **Coordinator Responsibility**: 
+   - ALL calculations must happen in the coordinator
+   - Sensors should ONLY read data from coordinator
+   - Coordinator handles subscriptions to external entities
+   - Coordinator maintains all state
+
+2. **Error Handling Strategy**:
+   - Use try/except blocks for external interactions
+   - Log errors with appropriate levels
+   - Provide meaningful error messages
+   - Fail gracefully with reasonable defaults
+
+3. **Entity Lifecycle**:
+   - Entities must properly register in `async_added_to_hass`
+   - Entities must properly clean up in `async_will_remove_from_hass`
+   - Use `self.async_write_ha_state` for the listener callback
+   - Handle null states in property getters
+
+4. **Integration Unload**:
+   - Always shutdown coordinator first
+   - Then unload platforms
+   - Then remove coordinator from hass.data
+   - Finally clean up any remaining entity registry entries
+   - Use two-phase entity removal to avoid dictionary size changes
+
+## Code Style Preferences
+
+1. **Logging**:
+   - Use `_LOGGER.debug` for detailed operational information
+   - Use `_LOGGER.info` for significant events like setup/teardown
+   - Use `_LOGGER.warning` for non-critical issues
+   - Use `_LOGGER.error` for critical failures
+   - Include context in log messages (entity_id, values)
+
+2. **Documentation**:
+   - Include docstrings for all classes and methods
+   - Follow Google docstring format
+   - Document parameters and return values
+   - Comment complex logic or calculations
+
+3. **Type Hints**:
+   - Use proper type hints for all functions
+   - Include return type annotations
+   - Use Optional[] for nullable parameters
+   - Follow Home Assistant type conventions
+
+4. **Constants**:
+   - Use UPPER_CASE for constants
+   - Define all constants in const.py
+   - Use descriptive names for constants
+   - Group related constants together
+
+## Key Implementation Details
+
+1. **Startup Sequence**:
+   - Coordinator has a 10-second startup delay for initial setup
+   - After initial setup, updates occur every 1 second
+   - Coordinator uses a retry mechanism for initial data fetching
+   - Coordinator tracks initialization state with `_initialized` flag
+
+2. **Entity Removal**:
+   - Entity cleanup happens in two phases to avoid dictionary iteration errors
+   - First collect all entity IDs to remove
+   - Then remove each entity
+   - Log each removal for debugging
+
+3. **Listener Management**:
+   - Use `async_add_listener` in `async_added_to_hass` to register callbacks
+   - Use `async_remove_listener` in `async_will_remove_from_hass` to unregister
+   - Always use `self.async_write_ha_state` as the callback
+   - Add error handling for listener removal
+
+4. **Device Registry Updates**:
+   - Update device name in device registry during rename
+   - Update entity names to match device name
+   - Use consistent naming patterns across entities
+   - Preserve entity functionality after rename
+
+## Common Issues and Solutions
+
+1. **Dictionary Changed Size Error**:
+   - Problem: Modifying a dictionary while iterating it
+   - Solution: Collect items to modify in a list, then process the list separately
+
+2. **Missing Callback Attribute**:
+   - Problem: Using non-existent `_update_callback` attribute
+   - Solution: Use `self.async_write_ha_state` as the callback reference
+
+3. **Entity Naming Issues**:
+   - Problem: Entity names not updating with device rename
+   - Solution: Explicitly update entity names in the entity registry
+
+4. **Coordinator Shutdown Issues**:
+   - Problem: Resources not properly released during unload
+   - Solution: Implement explicit cleanup in async_shutdown 
