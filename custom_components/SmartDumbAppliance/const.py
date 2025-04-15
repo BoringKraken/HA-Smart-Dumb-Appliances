@@ -5,28 +5,35 @@ This module defines all the constant values used in the integration,
 including configuration keys, attribute names, and default values.
 """
 
+from typing import Final
+
 # Integration domain name - this is how Home Assistant identifies our integration
-DOMAIN = "smart_dumb_appliance"
+DOMAIN: Final = "smart_dumb_appliance"
 
 # Default name for the integration - shown in the Home Assistant UI
 DEFAULT_NAME = "Smart Dumb Appliance"
 
 # Configuration keys - these are the settings that users can configure in the UI
 CONF_DEVICE_NAME = "device_name"          # The friendly name for the appliance (e.g., "Washing Machine")
-CONF_POWER_SENSOR = "power_sensor"        # The sensor that measures power consumption in watts
-CONF_COST_SENSOR = "cost_sensor"          # The sensor that provides cost per kWh (e.g., energy rate)
-CONF_START_WATTS = "start_watts"          # Power threshold that indicates appliance has started
-CONF_STOP_WATTS = "stop_watts"            # Power threshold that indicates appliance has stopped
-CONF_DEBOUNCE = "debounce"                # Time to wait before confirming state changes
-CONF_SERVICE_REMINDER = "service_reminder"  # Whether to enable service reminders
-CONF_SERVICE_REMINDER_COUNT = "service_reminder_count"  # Number of uses before service reminder
-CONF_SERVICE_REMINDER_MESSAGE = "service_reminder_message"  # Custom message for service reminder
+CONF_POWER_SENSOR: Final = "power_sensor"        # The sensor that measures power consumption in watts
+CONF_COST_SENSOR: Final = "cost_sensor"          # The sensor that provides cost per kWh (e.g., energy rate)
+CONF_START_WATTS: Final = "start_watts"          # Power threshold that indicates appliance has started
+CONF_STOP_WATTS: Final = "stop_watts"            # Power threshold that indicates appliance has stopped
+CONF_DEBOUNCE: Final = "debounce"                # Time to wait before confirming state changes
+CONF_START_DEBOUNCE = "start_debounce"
+CONF_END_DEBOUNCE = "end_debounce"
+CONF_SERVICE_REMINDER: Final = "service_reminder"  # Whether to enable service reminders
+CONF_SERVICE_REMINDER_COUNT: Final = "service_reminder_count"  # Number of uses before service reminder
+CONF_SERVICE_REMINDER_MESSAGE: Final = "service_reminder_message"  # Custom message for service reminder
 
 # Default values for configuration options
-DEFAULT_START_WATTS = 8.0               # Default start threshold (8W)
-DEFAULT_STOP_WATTS = 2.0                 # Default stop threshold (2W)
-DEFAULT_DEBOUNCE = 5                      # Default debounce time (5 seconds)
-DEFAULT_SERVICE_REMINDER_COUNT = 20       # Default number of uses before service reminder
+DEFAULT_START_WATTS: Final = 10.0               # Default start threshold (10W)
+DEFAULT_STOP_WATTS: Final = 5.0                 # Default stop threshold (5W)
+DEFAULT_DEBOUNCE: Final = 30                      # Default debounce time (30 seconds)
+DEFAULT_START_DEBOUNCE = 5    # Quick start detection (5 seconds)
+DEFAULT_END_DEBOUNCE = 15     # Longer end detection (15 seconds)
+DEFAULT_SERVICE_REMINDER_COUNT: Final = 0
+DEFAULT_SERVICE_REMINDER_MESSAGE: Final = "Service reminder"
 
 # Attribute names for the appliance state - these are the data points we track
 ATTR_START_TIME = "start_time"            # When the appliance started running

@@ -13,9 +13,18 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    BooleanSelector,
+    BooleanSelectorConfig,
+)
 from homeassistant.const import CONF_NAME
 
 from .const import (
@@ -24,15 +33,16 @@ from .const import (
     CONF_COST_SENSOR,
     CONF_START_WATTS,
     CONF_STOP_WATTS,
-    CONF_DEBOUNCE,
-    CONF_DEVICE_NAME,
+    CONF_START_DEBOUNCE,
+    CONF_END_DEBOUNCE,
     CONF_SERVICE_REMINDER,
-    CONF_SERVICE_REMINDER_COUNT,
     CONF_SERVICE_REMINDER_MESSAGE,
+    CONF_SERVICE_REMINDER_COUNT,
     DEFAULT_START_WATTS,
     DEFAULT_STOP_WATTS,
-    DEFAULT_DEBOUNCE,
-    DEFAULT_SERVICE_REMINDER_COUNT
+    DEFAULT_START_DEBOUNCE,
+    DEFAULT_END_DEBOUNCE,
+    DEFAULT_SERVICE_REMINDER_MESSAGE,
 )
 
 # Set up logging for this module
@@ -93,7 +103,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not self._errors:
                 # User has submitted the form, create the configuration entry
                 return self.async_create_entry(
-                    title=user_input[CONF_DEVICE_NAME],
+                    title=user_input[CONF_NAME],
                     data=user_input
                 )
 
@@ -101,7 +111,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             # Required fields
             vol.Required(
-                CONF_DEVICE_NAME,
+                CONF_NAME,
                 default="My Appliance",
                 description={"suffix": "Name shown in Home Assistant"}
             ): str,
@@ -118,7 +128,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "suffix": " watts",
                     "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts."
                 }
-            ): vol.Coerce(float),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=10000,
+                    step=0.1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="W",
+                ),
+            ),
             vol.Required(
                 CONF_STOP_WATTS,
                 default=DEFAULT_STOP_WATTS,
@@ -126,7 +144,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "suffix": " watts",
                     "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts."
                 }
-            ): vol.Coerce(float),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=10000,
+                    step=0.1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="W",
+                ),
+            ),
             
             # Optional fields with defaults
             vol.Optional(
@@ -136,30 +162,68 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.EntitySelectorConfig(domain=["input_number", "number"])
             ),
             vol.Optional(
-                CONF_DEBOUNCE,
-                default=DEFAULT_DEBOUNCE,
+                CONF_START_DEBOUNCE,
+                default=DEFAULT_START_DEBOUNCE,
                 description={
                     "suffix": " seconds",
                     "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
                 }
-            ): vol.Coerce(float),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=300,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                ),
+            ),
+            vol.Optional(
+                CONF_END_DEBOUNCE,
+                default=DEFAULT_END_DEBOUNCE,
+                description={
+                    "suffix": " seconds",
+                    "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
+                }
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=300,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                ),
+            ),
             
             # Service reminder settings
             vol.Optional(
                 CONF_SERVICE_REMINDER,
                 default=False,
                 description={"tooltip": "Enable service reminders after a set number of uses"}
-            ): bool,
+            ): BooleanSelector(
+                BooleanSelectorConfig(),
+            ),
             vol.Optional(
                 CONF_SERVICE_REMINDER_COUNT,
-                default=DEFAULT_SERVICE_REMINDER_COUNT,
+                default=0,
                 description={"tooltip": "Number of uses before showing a service reminder"}
-            ): vol.Coerce(int),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=1000,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                ),
+            ),
             vol.Optional(
                 CONF_SERVICE_REMINDER_MESSAGE,
-                default="Time for maintenance",
+                default=DEFAULT_SERVICE_REMINDER_MESSAGE,
                 description={"tooltip": "Message to show when service is needed"}
-            ): str,
+            ): TextSelector(
+                TextSelectorConfig(
+                    type="text",
+                    multiline=True,
+                ),
+            ),
         })
 
         # Show the configuration form
@@ -186,7 +250,7 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
         # Try to get current values from the energy usage sensor
         current_config = entry.data
-        energy_sensor_id = f"sensor.{entry.data[CONF_DEVICE_NAME].lower().replace(' ', '_')}_energy_usage"
+        energy_sensor_id = f"sensor.{entry.data[CONF_NAME].lower().replace(' ', '_')}_energy_usage"
         energy_sensor = self.hass.states.get(energy_sensor_id)
         
         if energy_sensor and energy_sensor.attributes:
@@ -195,12 +259,13 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 **current_config,  # Keep any values not in attributes
                 CONF_START_WATTS: energy_sensor.attributes.get("start_watts", current_config.get(CONF_START_WATTS, DEFAULT_START_WATTS)),
                 CONF_STOP_WATTS: energy_sensor.attributes.get("stop_watts", current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)),
-                CONF_DEBOUNCE: energy_sensor.attributes.get("debounce", current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
+                CONF_START_DEBOUNCE: energy_sensor.attributes.get("start_debounce", current_config.get(CONF_START_DEBOUNCE, DEFAULT_START_DEBOUNCE)),
+                CONF_END_DEBOUNCE: energy_sensor.attributes.get("end_debounce", current_config.get(CONF_END_DEBOUNCE, DEFAULT_END_DEBOUNCE)),
                 CONF_POWER_SENSOR: energy_sensor.attributes.get("power_sensor", current_config.get(CONF_POWER_SENSOR)),
                 CONF_COST_SENSOR: energy_sensor.attributes.get("cost_sensor", current_config.get(CONF_COST_SENSOR)),
                 CONF_SERVICE_REMINDER: energy_sensor.attributes.get("service_reminder_enabled", current_config.get(CONF_SERVICE_REMINDER, False)),
-                CONF_SERVICE_REMINDER_COUNT: energy_sensor.attributes.get("service_reminder_count", current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)),
-                CONF_SERVICE_REMINDER_MESSAGE: energy_sensor.attributes.get("service_reminder_message", current_config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")),
+                CONF_SERVICE_REMINDER_COUNT: energy_sensor.attributes.get("service_reminder_count", current_config.get(CONF_SERVICE_REMINDER_COUNT, 0)),
+                CONF_SERVICE_REMINDER_MESSAGE: energy_sensor.attributes.get("service_reminder_message", current_config.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_SERVICE_REMINDER_MESSAGE)),
             }
 
         # If user input is provided, update the configuration
@@ -212,8 +277,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="reconfigure",
                     data_schema=vol.Schema({
                         vol.Required(
-                            CONF_DEVICE_NAME,
-                            default=user_input.get(CONF_DEVICE_NAME, current_config.get(CONF_DEVICE_NAME)),
+                            CONF_NAME,
+                            default=user_input.get(CONF_NAME, current_config.get(CONF_NAME)),
                             description={"suffix": "Name shown in Home Assistant"}
                         ): str,
                         vol.Required(
@@ -230,7 +295,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "suffix": " watts",
                                 "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts."
                             }
-                        ): vol.Coerce(float),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=10000,
+                                step=0.1,
+                                mode=NumberSelectorMode.BOX,
+                                unit_of_measurement="W",
+                            ),
+                        ),
                         vol.Required(
                             CONF_STOP_WATTS,
                             default=user_input.get(CONF_STOP_WATTS, current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)),
@@ -238,7 +311,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "suffix": " watts",
                                 "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts."
                             }
-                        ): vol.Coerce(float),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=10000,
+                                step=0.1,
+                                mode=NumberSelectorMode.BOX,
+                                unit_of_measurement="W",
+                            ),
+                        ),
                         vol.Optional(
                             CONF_COST_SENSOR,
                             default=user_input.get(CONF_COST_SENSOR, current_config.get(CONF_COST_SENSOR)),
@@ -247,28 +328,66 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             selector.EntitySelectorConfig(domain=["input_number", "number"])
                         ),
                         vol.Optional(
-                            CONF_DEBOUNCE,
-                            default=user_input.get(CONF_DEBOUNCE, current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)),
+                            CONF_START_DEBOUNCE,
+                            default=user_input.get(CONF_START_DEBOUNCE, current_config.get(CONF_START_DEBOUNCE, DEFAULT_START_DEBOUNCE)),
                             description={
                                 "suffix": " seconds",
                                 "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
                             }
-                        ): vol.Coerce(float),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=300,
+                                step=1,
+                                mode=NumberSelectorMode.BOX,
+                                unit_of_measurement="s",
+                            ),
+                        ),
+                        vol.Optional(
+                            CONF_END_DEBOUNCE,
+                            default=user_input.get(CONF_END_DEBOUNCE, current_config.get(CONF_END_DEBOUNCE, DEFAULT_END_DEBOUNCE)),
+                            description={
+                                "suffix": " seconds",
+                                "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
+                            }
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=300,
+                                step=1,
+                                mode=NumberSelectorMode.BOX,
+                                unit_of_measurement="s",
+                            ),
+                        ),
                         vol.Optional(
                             CONF_SERVICE_REMINDER,
                             default=user_input.get(CONF_SERVICE_REMINDER, current_config.get(CONF_SERVICE_REMINDER, False)),
                             description={"tooltip": "Enable service reminders after a set number of uses"}
-                        ): bool,
+                        ): BooleanSelector(
+                            BooleanSelectorConfig(),
+                        ),
                         vol.Optional(
                             CONF_SERVICE_REMINDER_COUNT,
-                            default=user_input.get(CONF_SERVICE_REMINDER_COUNT, current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT)),
+                            default=user_input.get(CONF_SERVICE_REMINDER_COUNT, current_config.get(CONF_SERVICE_REMINDER_COUNT, 0)),
                             description={"tooltip": "Number of uses before showing a service reminder"}
-                        ): vol.Coerce(int),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=1000,
+                                step=1,
+                                mode=NumberSelectorMode.BOX,
+                            ),
+                        ),
                         vol.Optional(
                             CONF_SERVICE_REMINDER_MESSAGE,
-                            default=user_input.get(CONF_SERVICE_REMINDER_MESSAGE, current_config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance")),
+                            default=user_input.get(CONF_SERVICE_REMINDER_MESSAGE, current_config.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_SERVICE_REMINDER_MESSAGE)),
                             description={"tooltip": "Message to show when service is needed"}
-                        ): str,
+                        ): TextSelector(
+                            TextSelectorConfig(
+                                type="text",
+                                multiline=True,
+                            ),
+                        ),
                     }),
                     errors=threshold_errors,
                 )
@@ -285,8 +404,8 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema({
                 vol.Required(
-                    CONF_DEVICE_NAME,
-                    default=current_config.get(CONF_DEVICE_NAME),
+                    CONF_NAME,
+                    default=current_config.get(CONF_NAME),
                     description={"suffix": "Name shown in Home Assistant"}
                 ): str,
                 vol.Required(
@@ -303,7 +422,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has started. Must be higher than stop watts."
                     }
-                ): vol.Coerce(float),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=10000,
+                        step=0.1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="W",
+                    ),
+                ),
                 vol.Required(
                     CONF_STOP_WATTS,
                     default=current_config.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS),
@@ -311,7 +438,15 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "suffix": " watts",
                         "tooltip": "Power threshold that indicates the appliance has stopped. Must be lower than start watts."
                     }
-                ): vol.Coerce(float),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=10000,
+                        step=0.1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="W",
+                    ),
+                ),
                 vol.Optional(
                     CONF_COST_SENSOR,
                     default=current_config.get(CONF_COST_SENSOR),
@@ -320,28 +455,66 @@ class SmartDumbApplianceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.EntitySelectorConfig(domain=["input_number", "number"])
                 ),
                 vol.Optional(
-                    CONF_DEBOUNCE,
-                    default=current_config.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE),
+                    CONF_START_DEBOUNCE,
+                    default=current_config.get(CONF_START_DEBOUNCE, DEFAULT_START_DEBOUNCE),
                     description={
                         "suffix": " seconds",
                         "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
                     }
-                ): vol.Coerce(float),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=300,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="s",
+                    ),
+                ),
+                vol.Optional(
+                    CONF_END_DEBOUNCE,
+                    default=current_config.get(CONF_END_DEBOUNCE, DEFAULT_END_DEBOUNCE),
+                    description={
+                        "suffix": " seconds",
+                        "tooltip": "Time to wait before confirming state changes. Prevents rapid on/off cycling."
+                    }
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=300,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="s",
+                    ),
+                ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER,
                     default=current_config.get(CONF_SERVICE_REMINDER, False),
                     description={"tooltip": "Enable service reminders after a set number of uses"}
-                ): bool,
+                ): BooleanSelector(
+                    BooleanSelectorConfig(),
+                ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER_COUNT,
-                    default=current_config.get(CONF_SERVICE_REMINDER_COUNT, DEFAULT_SERVICE_REMINDER_COUNT),
+                    default=current_config.get(CONF_SERVICE_REMINDER_COUNT, 0),
                     description={"tooltip": "Number of uses before showing a service reminder"}
-                ): vol.Coerce(int),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=1000,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                    ),
+                ),
                 vol.Optional(
                     CONF_SERVICE_REMINDER_MESSAGE,
-                    default=current_config.get(CONF_SERVICE_REMINDER_MESSAGE, "Time for maintenance"),
+                    default=current_config.get(CONF_SERVICE_REMINDER_MESSAGE, DEFAULT_SERVICE_REMINDER_MESSAGE),
                     description={"tooltip": "Message to show when service is needed"}
-                ): str,
+                ): TextSelector(
+                    TextSelectorConfig(
+                        type="text",
+                        multiline=True,
+                    ),
+                ),
             }),
             errors=self._errors,
         )

@@ -22,6 +22,10 @@ from .const import (
     CONF_SERVICE_REMINDER,
     CONF_SERVICE_REMINDER_MESSAGE,
     CONF_SERVICE_REMINDER_COUNT,
+    CONF_DEBOUNCE,
+    DEFAULT_DEBOUNCE,
+    CONF_START_DEBOUNCE,
+    CONF_END_DEBOUNCE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,6 +106,27 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._start_watts = config_entry.data.get(CONF_START_WATTS, DEFAULT_START_WATTS)
         self._stop_watts = config_entry.data.get(CONF_STOP_WATTS, DEFAULT_STOP_WATTS)
         
+        # Handle migration from old debounce to new start/end debounce
+        old_debounce = config_entry.data.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE)
+        self._start_debounce = config_entry.data.get(CONF_START_DEBOUNCE, old_debounce)
+        self._end_debounce = config_entry.data.get(CONF_END_DEBOUNCE, old_debounce)
+        
+        # If we're using the old debounce value, update the config entry
+        if CONF_DEBOUNCE in config_entry.data and CONF_START_DEBOUNCE not in config_entry.data:
+            _LOGGER.info(
+                "Migrating debounce configuration for %s: using %d seconds for both start and end",
+                config_entry.data.get('name', 'Smart Dumb Appliance'),
+                old_debounce
+            )
+            hass.config_entries.async_update_entry(
+                config_entry,
+                data={
+                    **config_entry.data,
+                    CONF_START_DEBOUNCE: old_debounce,
+                    CONF_END_DEBOUNCE: old_debounce,
+                }
+            )
+        
         # Initialize state tracking
         self._start_time = None
         self._end_time = None
@@ -118,6 +143,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_cycle_end_time = None
         self._last_cycle_duration = None
         self._total_duration = timedelta(0)
+        self._start_debounce_start = None  # Track when power first went above threshold
+        self._end_debounce_start = None    # Track when power first went below threshold
         self.data = None
         self._initialized = False
 
@@ -235,8 +262,28 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 f"${cost_rate:.4f}" if cost_rate is not None else "unknown"
             )
 
-            # Determine if the appliance is running
-            is_on = current_power > self._start_watts or (self._was_on and current_power > self._stop_watts)
+            # Determine if the appliance is running with separate start/end debounce
+            is_on = self._was_on  # Start with previous state
+            
+            # Handle start debounce
+            if current_power > self._start_watts and not self._was_on:
+                if self._start_debounce_start is None:
+                    self._start_debounce_start = current_time
+                elif (current_time - self._start_debounce_start).total_seconds() >= self._start_debounce:
+                    is_on = True
+                    self._start_debounce_start = None
+            else:
+                self._start_debounce_start = None
+            
+            # Handle end debounce
+            if current_power <= self._stop_watts and self._was_on:
+                if self._end_debounce_start is None:
+                    self._end_debounce_start = current_time
+                elif (current_time - self._end_debounce_start).total_seconds() >= self._end_debounce:
+                    is_on = False
+                    self._end_debounce_start = None
+            else:
+                self._end_debounce_start = None
             
             # Calculate current duration
             current_duration = current_time - self._start_time if self._start_time else timedelta(0)
@@ -417,6 +464,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_cycle_end_time = None
         self._last_cycle_duration = None
         self._total_duration = timedelta(0)
+        self._start_debounce_start = None
+        self._end_debounce_start = None
         self.data = None
         self._initialized = False
         
@@ -506,6 +555,8 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self._last_cycle_end_time = None
         self._last_cycle_duration = None
         self._total_duration = timedelta(0)
+        self._start_debounce_start = None
+        self._end_debounce_start = None
         self.data = None
         self._initialized = False
         

@@ -18,6 +18,11 @@ Secondary focus is on improving the initialization process to handle dependencie
 3. Improving error handling during coordinator setup
 4. Preserving fast update intervals after initial setup
 
+### Debounce Timer Changes
+- Implementation of separate start and end debounce timers
+- Migration from single debounce to dual debounce configuration
+- Fine-tuning of default debounce values
+
 ## Recent Changes
 
 ### Entity Removal Enhancements
@@ -43,6 +48,13 @@ Secondary focus is on improving the initialization process to handle dependencie
 - Implemented entity name updates during rename operations
 - Preserved entity_id consistency
 - Added debug logging for rename operations
+
+### Debounce Timer Changes
+- Added separate start (5s) and end (15s) debounce timers
+- Implemented migration logic for existing installations
+- Updated configuration UI to support independent debounce settings
+- Removed Final type hints from configurable constants
+- Enhanced coordinator state tracking for debounce conditions
 
 ## Next Steps
 
@@ -82,4 +94,26 @@ Secondary focus is on improving the initialization process to handle dependencie
 1. **Entity Naming**: Ensuring entity names update correctly when device is renamed
 2. **Error Visibility**: Making errors visible and understandable to users
 3. **Configuration Simplicity**: Keeping configuration options simple while providing necessary flexibility
-4. **Performance Impact**: Balancing feature richness with performance impact 
+4. **Performance Impact**: Balancing feature richness with performance impact
+
+### Debounce Timer Decisions
+1. **Debounce Timer Separation**
+   - Start debounce: 5 seconds (quick detection)
+   - End debounce: 15 seconds (conservative detection)
+   - Rationale: Quick start detection for responsiveness, longer end detection to handle power dips
+
+2. **Migration Strategy**
+   - Using old debounce value for both start and end during migration
+   - Automatic config entry update to new format
+   - Logging of migration process for debugging
+
+3. **Configuration Approach**
+   - Separate UI controls for start and end debounce
+   - Configurable range: 0-300 seconds
+   - Clear tooltips explaining purpose of each timer
+
+## Next Steps
+1. Monitor performance of new debounce settings
+2. Gather user feedback on default values
+3. Consider adding appliance-specific default debounce profiles
+4. Document new debounce configuration in user guide 

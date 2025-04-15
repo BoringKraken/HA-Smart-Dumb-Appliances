@@ -48,38 +48,50 @@ flowchart TD
 
 ## Key Technical Decisions
 
-### 1. Coordinator-Based Architecture
-**Decision**: Use a dedicated coordinator to manage all state and calculations.  
-**Rationale**: 
-- Centralizes all business logic in one place
-- Ensures consistent state across all entities
-- Simplifies entity code
-- Follows Home Assistant best practices
-- Supports more efficient updates
+### State Management
+1. **Coordinator Pattern**
+   - Centralizes all business logic
+   - Manages state transitions
+   - Handles data persistence
+   - Coordinates entity updates
 
-### 2. Sensor Inheritance Pattern
-**Decision**: Use a base sensor class with specialized subclasses.  
-**Rationale**:
-- Reduces code duplication
-- Ensures consistent behavior across sensors
-- Simplifies maintenance and updates
-- Provides clear separation of concerns
+2. **Debounce Implementation**
+   - Separate start (5s) and end (15s) debounce timers
+   - Independent tracking of debounce conditions
+   - Migration support for existing installations
+   - Configurable through UI
 
-### 3. Deferred Initialization
-**Decision**: Implement a startup delay and retry mechanism.  
-**Rationale**:
-- Ensures dependencies (e.g. power sensors) are available
-- Improves reliability on system restart
-- Handles race conditions more gracefully
-- Provides better error feedback
+3. **Entity Lifecycle**
+   - Proper registration in async_added_to_hass
+   - Cleanup in async_will_remove_from_hass
+   - State updates through async_write_ha_state
+   - Null state handling in property getters
 
-### 4. Entity Registry Management
-**Decision**: Manage entity cleanup and name updates explicitly.  
-**Rationale**:
-- Ensures proper cleanup during removal
-- Handles device renames correctly
-- Prevents orphaned entities
-- Improves user experience during configuration changes
+### Error Handling
+1. **Validation Strategy**
+   - Input validation in config flow
+   - Runtime error catching
+   - Graceful degradation
+   - Detailed error logging
+
+2. **Recovery Mechanisms**
+   - Retry logic for initial setup
+   - State persistence during errors
+   - Automatic migration of configurations
+   - Fallback to default values
+
+### Configuration Management
+1. **User Settings**
+   - Separate start/end debounce controls
+   - Power threshold configuration
+   - Service reminder settings
+   - Cost tracking options
+
+2. **Default Values**
+   - Start debounce: 5 seconds
+   - End debounce: 15 seconds
+   - Start watts: 10W
+   - Stop watts: 5W
 
 ## Design Patterns
 
