@@ -97,7 +97,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=f"{config_entry.data.get('name', 'Smart Dumb Appliance')}_coordinator",
             update_method=self._async_update_data,
-            update_interval=timedelta(seconds=1),  # Regular update interval
+            update_interval=timedelta(seconds=5),  # Increased from 1 second to 5 seconds for stability
         )
         
         self.config_entry = config_entry
@@ -294,7 +294,7 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 self._end_time = None
                 self._cycle_energy = 0.0
                 self._cycle_cost = 0.0
-                _LOGGER.debug(
+                _LOGGER.info(
                     "Appliance turned on - Current: %.1fW (%.3f kW), Start threshold: %.1fW",
                     current_power,
                     power_kw,
@@ -311,14 +311,14 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                     self._last_cycle_duration = current_duration
                     self._total_duration += current_duration
                     self._last_cycle_end_time = self._end_time
-                    _LOGGER.debug(
+                    _LOGGER.info(
                         "Cycle ended - Previous cycle energy: %.3f kWh, cost: $%.2f, Duration: %s",
                         self._previous_cycle_energy,
                         self._previous_cycle_cost,
                         self._last_cycle_duration
                     )
                 
-                _LOGGER.debug(
+                _LOGGER.info(
                     "Appliance turned off - Duration: %s, Cycle energy: %.3f kWh, Cycle cost: $%.2f",
                     current_duration,
                     self._cycle_energy,
@@ -361,20 +361,22 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
                 remaining_cycles=max(0, self.config_entry.data.get(CONF_SERVICE_REMINDER_COUNT, 0) - self._use_count)
             )
             
-            _LOGGER.debug(
-                "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle energy: %.3f kWh, "
-                "Previous cycle energy: %.3f kWh, Total energy: %.3f kWh, Cycle cost: $%.2f, "
-                "Previous cycle cost: $%.2f, Total cost: $%.2f",
-                current_power,
-                power_kw,
-                is_on,
-                self._cycle_energy,
-                self._previous_cycle_energy,
-                self._total_energy,
-                self._cycle_cost,
-                self._previous_cycle_cost,
-                self._total_cost
-            )
+            # Only log data generation on significant changes or errors
+            if is_on != self._was_on or self._use_count % 10 == 0:  # Log every 10th update or state changes
+                _LOGGER.debug(
+                    "Generated new data - Power: %.1fW (%.3f kW), Running: %s, Cycle energy: %.3f kWh, "
+                    "Previous cycle energy: %.3f kWh, Total energy: %.3f kWh, Cycle cost: $%.2f, "
+                    "Previous cycle cost: $%.2f, Total cost: $%.2f",
+                    current_power,
+                    power_kw,
+                    is_on,
+                    self._cycle_energy,
+                    self._previous_cycle_energy,
+                    self._total_energy,
+                    self._cycle_cost,
+                    self._previous_cycle_cost,
+                    self._total_cost
+                )
             
             return data
 
@@ -480,11 +482,23 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Power sensor %s state is None, skipping update", self._power_sensor)
             return
         
-        _LOGGER.debug(
-            "Power sensor %s changed: new_state=%s",
-            self._power_sensor,
-            new_state.state
-        )
+        # Only log significant changes to reduce log noise
+        try:
+            new_power = float(new_state.state)
+            if hasattr(self, '_last_logged_power'):
+                power_diff = abs(new_power - self._last_logged_power)
+                if power_diff > 10:  # Only log if power changed by more than 10W
+                    _LOGGER.debug(
+                        "Power sensor %s changed: %.1fW -> %.1fW",
+                        self._power_sensor,
+                        self._last_logged_power,
+                        new_power
+                    )
+                    self._last_logged_power = new_power
+            else:
+                self._last_logged_power = new_power
+        except (ValueError, TypeError):
+            _LOGGER.debug("Power sensor %s has invalid state: %s", self._power_sensor, new_state.state)
         
         # Schedule an update
         self.hass.async_create_task(self.async_refresh())
@@ -526,39 +540,4 @@ class SmartDumbApplianceCoordinator(DataUpdateCoordinator):
         self.data = data
         self.async_update_listeners()
 
-    async def async_shutdown(self) -> None:
-        """Clean up resources."""
-        _LOGGER.debug("Shutting down coordinator for %s", self._power_sensor)
-        
-        # Unsubscribe from state changes
-        if self._unsubscribe:
-            try:
-                self._unsubscribe()
-            except ValueError:
-                # Ignore errors if the listener was already removed
-                _LOGGER.debug("Listener already removed for %s", self._power_sensor)
-            self._unsubscribe = None
-        
-        # Clear all state
-        self._start_time = None
-        self._end_time = None
-        self._use_count = 0
-        self._cycle_energy = 0.0
-        self._previous_cycle_energy = 0.0
-        self._total_energy = 0.0
-        self._cycle_cost = 0.0
-        self._previous_cycle_cost = 0.0
-        self._total_cost = 0.0
-        self._was_on = False
-        self._last_power = 0.0
-        self._last_power_time = None
-        self._last_cycle_end_time = None
-        self._last_cycle_duration = None
-        self._total_duration = timedelta(0)
-        self._start_debounce_start = None
-        self._end_debounce_start = None
-        self.data = None
-        self._initialized = False
-        
-        # Stop the update interval
-        await super().async_shutdown() 
+    # Removed duplicate async_shutdown method to prevent conflicts 
